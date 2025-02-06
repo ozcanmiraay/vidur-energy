@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Energy Consumption Analysis Report</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        {{ css }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><i class="fas fa-leaf"></i> Energy Consumption Analysis Report</h1>
+        <p>Sustainable AI Performance Metrics</p>
+    </div>
+    
+    <div class="container">
+        <!-- Configuration Section -->
+        <div class="card">
+            <h2 class="section-title"><i class="fas fa-cog"></i> Configuration</h2>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <i class="fas fa-microchip"></i>
+                    <div class="metric-value">{{ config.gpu_type.upper() }}</div>
+                    <div class="metric-label">GPU Type</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-server"></i>
+                    <div class="metric-value">{{ config.num_gpus }}</div>
+                    <div class="metric-label">Number of GPUs</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div class="metric-value">{{ config.region.title() }}</div>
+                    <div class="metric-label">Region</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Energy Metrics Section -->
+        <div class="card">
+            <h2 class="section-title"><i class="fas fa-chart-line"></i> Energy Metrics</h2>
+            <div class="metric-grid">
+                <div class="metric-item">
+                    <i class="fas fa-bolt"></i>
+                    <div class="metric-value">{{ "%.2f"|format(metrics.energy_kwh) }} kWh</div>
+                    <div class="metric-label">Total Energy Consumption</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-dollar-sign"></i>
+                    <div class="metric-value">${{ "%.2f"|format(metrics.energy_cost) }}</div>
+                    <div class="metric-label">Energy Cost</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-cloud"></i>
+                    <div class="metric-value">{{ "%.2f"|format(metrics.carbon_emissions) }}</div>
+                    <div class="metric-label">Carbon Emissions (gCO2eq)</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <div class="metric-value">{{ "%.2f"|format(metrics.energy_efficiency) }}</div>
+                    <div class="metric-label">Energy Efficiency (FLOPS/W)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Regional Comparison Section -->
+        <div class="card">
+            <h2 class="section-title"><i class="fas fa-globe"></i> Regional Comparison</h2>
+            <table>
+                <tr>
+                    <th>Region</th>
+                    <th>Energy Cost ($)</th>
+                    <th>Carbon Emissions (gCO2eq)</th>
+                </tr>
+                {% for region, metrics in regional_comparison.items() %}
+                <tr>
+                    <td>{{ region.title() }}</td>
+                    <td>${{ "%.2f"|format(metrics.energy_cost) }}</td>
+                    <td>{{ "%.2f"|format(metrics.carbon_emissions) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+
+        <!-- Visualizations Section -->
+        <div class="card">
+            <h2 class="section-title"><i class="fas fa-chart-area"></i> Visualizations</h2>
+            
+            <h3>Energy Consumption Over Time</h3>
+            <div class="plot-container" id="energy_time_series"></div>
+            
+            <h3>Energy Efficiency Analysis</h3>
+            <div class="plot-container" id="efficiency_scatter"></div>
+            
+            <h3>Regional Impact Comparison</h3>
+            <div class="plot-container" id="regional_impact"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Show loading state
+            document.querySelectorAll('.plot-container').forEach(container => {
+                container.innerHTML = '<div class="loading">Loading visualization...</div>';
+            });
+
+            // Function to create plot with loading indicator
+            function createPlot(elementId, plotData) {
+                try {
+                    const container = document.getElementById(elementId);
+                    const data = JSON.parse(plotData);
+                    
+                    Plotly.newPlot(elementId, data.data, data.layout, {
+                        responsive: true,
+                        displayModeBar: true,
+                        displaylogo: false
+                    }).then(() => {
+                        container.querySelector('.loading')?.remove();
+                        window.addEventListener('resize', () => {
+                            Plotly.Plots.resize(elementId);
+                        });
+                    }).catch((error) => {
+                        console.error('Error in plot creation:', error);
+                        container.innerHTML = '<div class="error">Error loading visualization</div>';
+                    });
+                } catch (error) {
+                    console.error('Error parsing plot data:', error);
+                    document.getElementById(elementId).innerHTML = 
+                        '<div class="error">Error loading visualization</div>';
+                }
+            }
+
+            // Plot data
+            const plotData = {
+                'energy_time_series': {{ plots.energy_time_series | tojson }},
+                'efficiency_scatter': {{ plots.efficiency_scatter | tojson }},
+                'regional_impact': {{ plots.regional_impact | tojson }}
+            };
+
+            // Create plots with a slight delay between each
+            Object.entries(plotData).forEach(([id, data], index) => {
+                setTimeout(() => createPlot(id, data), index * 300);
+            });
+        });
+    </script>
+</body>
+</html> 
