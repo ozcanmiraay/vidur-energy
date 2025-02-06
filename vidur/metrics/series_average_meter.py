@@ -1,7 +1,5 @@
 import json
-
 import wandb
-
 from vidur.logger import init_logger
 
 logger = init_logger(__name__)
@@ -14,19 +12,19 @@ class SeriesAverageMeter:
         y_name: str,
         use_weighted_mean: bool = True,
         save_table_to_wandb: bool = True,
+        is_mfu: bool = False  # New parameter to differentiate MFU from other metrics
     ) -> None:
-        # column names of x, y datatpoints for data collection
+        self._distribution = []
         self._x_name = x_name
         self._y_name = y_name
         self._use_weighted_mean = use_weighted_mean
         self._save_table_to_wandb = save_table_to_wandb
+        self._is_mfu = is_mfu  # Store whether this is an MFU meter
 
         self._denom_sum = 0
         self._numer_sum = 0
         self._min_y = float("inf")
         self._max_y = float("-inf")
-        # most recently collected y datapoint for incremental updates
-        # to aid incremental updates to y datapoints
         self._last_data_y = None
         self._last_data_x = None
 
@@ -46,12 +44,30 @@ class SeriesAverageMeter:
         self._denom_sum += x_diff
 
     # add a new x, y datapoint
-    def put(self, data_x: float, data_y: float) -> None:
+    def put(self, data_x: float, data_y: float, metadata: dict = None) -> None:
         if self._use_weighted_mean:
             self._update_weighted_mean(data_x)
         else:
             self._update_simple_mean(data_y)
 
+        # Skip if redundant zero value
+        if data_y == 0 and (self._last_data_y == 0 or not self._distribution):
+            return
+
+        # Create data point, including metadata only for MFU meters
+        if self._is_mfu and metadata:
+            data_point = {
+                "time": data_x,
+                self._y_name: data_y
+            }
+            data_point.update(metadata)
+        else:
+            data_point = {
+                "time": data_x,
+                self._y_name: data_y
+            }
+            
+        self._distribution.append(data_point)
         self._last_data_y = data_y
         self._last_data_x = data_x
         self._min_y = min(self._min_y, data_y)
@@ -74,21 +90,15 @@ class SeriesAverageMeter:
 
         weighted_mean = self._numer_sum / self._denom_sum
 
-        logger.debug(
-            f"{name}: {self._y_name} stats:"
-            f" min: {self._min_y},"
-            f" max: {self._max_y},"
-            f" weighted_mean: {weighted_mean}"
-        )
-
         stats_dict = {
             f"{name}_min": self._min_y,
             f"{name}_max": self._max_y,
             f"{name}_weighted_mean": weighted_mean,
+            f"{name}_distribution": self._distribution  # Now includes all metadata
         }
 
         with open(f"{path}/{name}.json", "w") as f:
-            json.dump(stats_dict, f)
+            json.dump(stats_dict, f, indent=4)
 
         if wandb.run:
             wandb.log(

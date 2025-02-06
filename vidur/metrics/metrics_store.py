@@ -53,12 +53,28 @@ class MetricsStore:
         self._simulation_config = simulation_config
         self._config = self._simulation_config.metrics_config
         self._last_request_arrived_at = None
+        self._mfu_distribution = []  # Store the progressive MFU distribution
 
         # copy config
         self._num_replicas = self._simulation_config.cluster_config.num_replicas
         self._num_pipeline_stages = (
             self._simulation_config.cluster_config.replica_config.num_pipeline_stages
         )
+
+        # Initialize MFU meters with is_mfu=True
+        self._replica_mfu = [
+            [
+                SeriesAverageMeter("time", "mfu", is_mfu=True)
+                for _ in range(self._num_pipeline_stages)
+            ]
+            for _ in range(self._num_replicas)
+        ]
+        
+        # Initialize memory usage meters with is_mfu=False (default)
+        self._replica_memory_usage = [
+            SeriesAverageMeter("time", "memory_usage")
+            for _ in range(self._num_replicas)
+        ]
 
         # Initialise request metrics
         self._request_metrics_time_distributions: Dict[
@@ -194,26 +210,13 @@ class MetricsStore:
             )
 
         # per replica metrics
-        self._replica_memory_usage = []
-        # per replica stage metrics
         self._replica_busy_time = []
-        self._replica_mfu = []
         self._mfu_calculator = MFUCalculator(
             self._simulation_config.cluster_config.replica_config
         )
 
         for replica_idx in range(self._num_replicas):
-            self._replica_memory_usage.append(
-                SeriesAverageMeter(
-                    TIME_STR,
-                    MEMORY_USAGE_STR,
-                    self._config.save_table_to_wandb,
-                )
-            )
-            self._replica_memory_usage[replica_idx].put(0, 0)
-
             self._replica_busy_time.append([])
-            self._replica_mfu.append([])
 
             for stage_idx in range(self._num_pipeline_stages):
                 self._replica_busy_time[replica_idx].append(
@@ -224,15 +227,6 @@ class MetricsStore:
                     )
                 )
                 self._replica_busy_time[replica_idx][stage_idx].put(0, 0)
-
-                self._replica_mfu[replica_idx].append(
-                    SeriesAverageMeter(
-                        TIME_STR,
-                        UTILIZATION_STR,
-                        save_table_to_wandb=self._config.save_table_to_wandb,
-                    )
-                )
-                self._replica_mfu[replica_idx][stage_idx].put(0, 0)
 
         self._init_wandb()
 
@@ -699,9 +693,31 @@ class MetricsStore:
         if not self._config.store_utilization_metrics:
             return
 
-        self._replica_busy_time[replica_id - 1][stage_id - 1].put(time, 100)
         mfu = self._mfu_calculator.get_mfu(batch_stage)
-        self._replica_mfu[replica_id - 1][stage_id - 1].put(time, mfu)
+        
+        # Create metadata dictionary with batch size
+        metadata = {
+            "batch_id": batch_stage._batch_id,
+            "batch_stage_id": batch_stage._id,
+            "num_tokens": sum(batch_stage.num_tokens),  # Total tokens in batch
+            "batch_size": batch_stage.size,  # Number of requests in batch
+            "execution_time": batch_stage.execution_time,
+            "model_execution_time": batch_stage.model_execution_time
+        }
+
+        # Log only if MFU is different from last logged value
+        last_logged_mfu = self._replica_mfu[replica_id - 1][stage_id - 1]._peek_y()
+        if mfu != last_logged_mfu:
+            self._replica_mfu[replica_id - 1][stage_id - 1].put(time, mfu, metadata)
+            logger.debug(f"Logged MFU={mfu} for time={time}, replica={replica_id}, stage={stage_id}")
+
+        # Accumulate time and log the MFU for the distribution
+        if len(self._mfu_distribution) > 0:
+            cumulative_time = self._mfu_distribution[-1]["time"] + batch_stage.execution_time
+        else:
+            cumulative_time = batch_stage.execution_time
+
+        self._mfu_distribution.append({"time": cumulative_time, "mfu": mfu})
 
         if not self._config.store_operation_metrics:
             return
@@ -817,5 +833,9 @@ class MetricsStore:
     ) -> None:
         if not self._config.store_utilization_metrics:
             return
-        self._replica_busy_time[replica_id - 1][stage_id - 1].put(time, 0)
-        self._replica_mfu[replica_id - 1][stage_id - 1].put(time, 0)
+
+        # Log only if MFU is already non-zero in the last state
+        last_logged_mfu = self._replica_mfu[replica_id - 1][stage_id - 1]._peek_y()
+        if last_logged_mfu != 0:
+            logger.debug(f"Logging zero MFU for replica={replica_id}, stage={stage_id} at time={time}")
+            self._replica_mfu[replica_id - 1][stage_id - 1].put(time, 0)
