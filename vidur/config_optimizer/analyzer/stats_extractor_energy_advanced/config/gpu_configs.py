@@ -24,5 +24,5 @@ GPU_POWER_CONFIGS = {
         memory_bandwidth=1935,
         memory_capacity=80
     ),
-    # Add other GPU configs...
+    # Add other GPU configs with placeholder values...
 } 

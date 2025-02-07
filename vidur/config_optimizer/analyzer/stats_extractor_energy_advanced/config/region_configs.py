@@ -22,4 +22,5 @@ REGIONAL_ENERGY_CONFIGS = {
         carbon_intensity=260.0,
         electricity_cost=0.10
     ),
+    # Add other regions with placeholder values...
 } 
