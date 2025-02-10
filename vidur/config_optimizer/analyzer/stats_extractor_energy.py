@@ -9,8 +9,8 @@ from multiprocessing import Pool
 from vidur.logger import init_logger
 from vidur.config_optimizer.analyzer.constants import CPU_MACHINE_COST, GPU_COSTS
 from datetime import datetime, timedelta
-from vidur.config_optimizer.analyzer.stats_extractor_energy_advanced.config.region_configs import REGIONAL_ENERGY_CONFIGS
-from vidur.config_optimizer.analyzer.stats_extractor_energy_advanced.config.gpu_configs import GPU_POWER_CONFIGS
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.region_configs import REGIONAL_ENERGY_CONFIGS
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.gpu_configs import GPU_POWER_CONFIGS
 
 logger = init_logger(__name__)
 

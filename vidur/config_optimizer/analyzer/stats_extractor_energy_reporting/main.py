@@ -1,5 +1,5 @@
 import argparse
-from vidur.config_optimizer.analyzer.stats_extractor_energy_advanced.analyzer import SimulationEnergyAnalyzer
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.analyzer import SimulationEnergyAnalyzer
 
 def main():
     parser = argparse.ArgumentParser(
