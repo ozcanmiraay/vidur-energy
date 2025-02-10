@@ -9,88 +9,30 @@ from multiprocessing import Pool
 from vidur.logger import init_logger
 from vidur.config_optimizer.analyzer.constants import CPU_MACHINE_COST, GPU_COSTS
 from datetime import datetime, timedelta
+from vidur.config_optimizer.analyzer.stats_extractor_energy_advanced.config.region_configs import REGIONAL_ENERGY_CONFIGS
+from vidur.config_optimizer.analyzer.stats_extractor_energy_advanced.config.gpu_configs import GPU_POWER_CONFIGS
 
 logger = init_logger(__name__)
 
-GPU_POWER_VALUES = {
-    "a100": {
-        "idle": 744.8,
-        "10%": 1687.5,
-        "50%": 3781.8,
-        "100%": 5245.0,
-        "manufacturing_emissions": 135.3  # gCO2eq for manufacturing (Scope 3)
-    },
-    "h100": {
-        "idle": 800,  # Placeholder values for H100 GPUs
-        "10%": 1700,
-        "50%": 4000,
-        "100%": 6000,
-        "manufacturing_emissions": 150.0 
-    },
-    "a40": {
-        "idle": 700,  # Placeholder values for A40 GPUs
-        "10%": 1800,
-        "50%": 3000,
-        "100%": 5000,
-        "manufacturing_emissions": 120.0
-    },
-}
-
-def interpolate_power(mfu, power_values):
-    """
-    Interpolate power consumption based on MFU and given power values.
-
-    Args:
-        mfu (float): Model FLOP Utilization (0 to 100)
-        power_values (dict): Power values for idle, 10%, 50%, and 100% utilization.
-
-    Returns:
-        float: Interpolated power consumption in watts.
-    """
-    if mfu <= 0.1:
-        return power_values["idle"] + (power_values["10%"] - power_values["idle"]) * (mfu / 0.1)
-    elif mfu <= 0.5:
-        return power_values["10%"] + (power_values["50%"] - power_values["10%"]) * ((mfu - 0.1) / 0.4)
-    else:
-        return power_values["50%"] + (power_values["100%"] - power_values["50%"]) * ((mfu - 0.5) / 0.5)
-    
+def interpolate_power(mfu: float, gpu_type: str) -> float:
+    """Linear interpolation between idle and max utilization power states."""
+    gpu_config = GPU_POWER_CONFIGS[gpu_type]
+    power = gpu_config.idle + (gpu_config.max_util - gpu_config.idle) * mfu
+    return power
 
 def get_gpu_power(sim_results_dir):
-    """
-    Retrieve power consumption values for a GPU type from the configuration file.
-
-    Args:
-        sim_results_dir (str): Directory containing simulation results and configuration.
-
-    Returns:
-        dict: Power consumption values (idle, 10%, 50%, 100%) for the GPU.
-    """
+    """Get GPU config based on type specified in simulation config."""
     config_file = f"{sim_results_dir}/config.json"
     try:
         with open(config_file, 'r') as f:
             config_data = json.load(f)
-        gpu_type = config_data['cluster_config']['replica_config']['device']
-
-        # Return the corresponding power values for the GPU type for unknown GPUs
-        power_values = GPU_POWER_VALUES.get(gpu_type, {
-            "idle": 300,
-            "10%": 600,
-            "50%": 1500,
-            "100%": 3000
-        })
-
-        return power_values
-
+        gpu_type = config_data['cluster_config']['replica_config']['device'].lower()
+        return GPU_POWER_CONFIGS[gpu_type]
     except Exception as e:
         logger.error(f"Error reading config file for GPU power: {e}")
-        return {
-            "idle": 300,
-            "10%": 600,
-            "50%": 1500,
-            "100%": 3000
-        }
+        return GPU_POWER_CONFIGS["a100"]  # Default to A100 if there's an error
 
-def calculate_energy_consumption(gpu_hrs, power_values, mfu):
+def calculate_energy_consumption(gpu_hrs, power_values, mfu, gpu_type):
     """
     Calculate the total energy consumption based on GPU hours, interpolated power, and MFU.
 
@@ -98,11 +40,12 @@ def calculate_energy_consumption(gpu_hrs, power_values, mfu):
         gpu_hrs (float): Number of GPU hours.
         power_values (dict): Power consumption values (idle, 10%, 50%, 100%).
         mfu (float): Model FLOP Utilization (0 to 100).
+        gpu_type (str): GPU type.
 
     Returns:
         float: Energy consumption in kilowatt-hours (kWh).
     """
-    effective_power = interpolate_power(mfu, power_values)  # Interpolate power
+    effective_power = interpolate_power(mfu, gpu_type)  # Pass gpu_type here
     energy_kwh = effective_power * gpu_hrs / 1000  # Convert watts to kilowatt-hours
     return energy_kwh
 
@@ -144,6 +87,12 @@ def process_mfu_energy(run_dir: str, power_values: dict):
     Returns:
         None
     """
+    # Get GPU type from config
+    config_file = f"{run_dir}/config.json"
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    gpu_type = config["cluster_config"]["replica_config"]["device"].lower()
+
     # Locate all MFU files across replicas and stages
     mfu_files = glob.glob(f"{run_dir}/plots/replica_*_stage_*_mfu.json")
     if not mfu_files:
@@ -151,7 +100,6 @@ def process_mfu_energy(run_dir: str, power_values: dict):
         return
 
     # Retrieve the number of GPUs from the config file
-    config_file = os.path.join(run_dir, "config.json")
     try:
         with open(config_file, "r") as f:
             config_data = json.load(f)
@@ -222,8 +170,8 @@ def process_mfu_energy(run_dir: str, power_values: dict):
             gpu_hrs = (execution_time / 3600) * num_gpus
             
             # Calculate effective power for this MFU value
-            effective_power = interpolate_power(mfu, power_values)
-            energy_consumption = calculate_energy_consumption(gpu_hrs, power_values, mfu)
+            effective_power = interpolate_power(mfu, gpu_type)
+            energy_consumption = calculate_energy_consumption(gpu_hrs, power_values, mfu, gpu_type)
 
             mfu_energy_data.append({
                 "time": time_seconds,  # Original time in seconds
@@ -419,7 +367,7 @@ def get_sim_time_from_request_completion(run_dir: str):
         logger.warning(f"request_completion_time_series.csv not found in {run_dir}")
         return np.nan 
 
-def process_trace(sim_results_dir: str):
+def process_trace(sim_results_dir: str, region: str = "california"):
     analysis_dir = f"{sim_results_dir}/analysis"
 
     if os.path.exists(f"{analysis_dir}/stats.csv") and os.path.exists(
@@ -453,14 +401,17 @@ def process_trace(sim_results_dir: str):
     mfu_stats = extract_utilization_stats(sim_results_dir, "mfu")
     df["mfu_mean"] = mfu_stats["mfu_mean"]
 
+    # Quietly check for capacity calculations without warnings
     if "poisson_request_interval_generator_qps" in df.columns:
         df["capacity_per_dollar"] = df["poisson_request_interval_generator_qps"] / (
-        df["num_gpus"] * df["cluster_config"].apply(lambda x: x["replica_config"]["device"]).map(GPU_COSTS)
-    )
+            df["num_gpus"] * df["cluster_config"].apply(lambda x: x["replica_config"]["device"]).map(GPU_COSTS)
+        )
+        df["capacity_per_replica"] = (
+            df["poisson_request_interval_generator_qps"] / df["cluster_config"].apply(lambda x: x["num_replicas"])
+        )
     else:
-        logger.warning("'poisson_request_interval_generator_qps' not found, skipping capacity_per_dollar calculation.")
-        df["capacity_per_dollar"] = np.nan 
-
+        df["capacity_per_dollar"] = np.nan
+        df["capacity_per_replica"] = np.nan
 
     df["gpu_hrs"] = df["runtime"] * df["num_gpus"] / 3600
 
@@ -470,24 +421,26 @@ def process_trace(sim_results_dir: str):
     df["hour_cost_per_replica"] = (
        df["cluster_config"].apply(lambda x: x["replica_config"]["device"]).map(GPU_COSTS) * df["num_replica_gpus"]
     )
-    if "poisson_request_interval_generator_qps" in df.columns:
-        df["capacity_per_replica"] = (
-        df["poisson_request_interval_generator_qps"] / df["cluster_config"].apply(lambda x: x["num_replicas"])
-    )
-    else:
-        logger.warning("'poisson_request_interval_generator_qps' not found, skipping capacity_per_replica calculation.")
-        df["capacity_per_replica"] = np.nan 
-
-    pue = 1.2  # PUE for California
-    carbon_intensity = 350.861  # Carbon intensity for California
+    region_config = REGIONAL_ENERGY_CONFIGS[region]
+    pue = region_config.pue
+    carbon_intensity = region_config.carbon_intensity
 
     power_values = get_gpu_power(sim_results_dir)
     process_mfu_energy(sim_results_dir, power_values)
-    manufacturing_emissions = power_values["manufacturing_emissions"]
+    manufacturing_emissions = power_values.manufacturing_emissions
 
+    # Get GPU type from config
+    config_file = f"{sim_results_dir}/config.json"
+    with open(config_file, 'r') as f:
+        config = json.load(f)
+    gpu_type = config["cluster_config"]["replica_config"]["device"].lower()
+
+    # Add gpu_type column to DataFrame before energy calculations
+    df["gpu_type"] = gpu_type
+    
     df["energy_gpu_kwh"] = df.apply(
         lambda row: calculate_energy_consumption(
-            row["gpu_hrs"], power_values, row["mfu_mean"]
+            row["gpu_hrs"], power_values, row["mfu_mean"], row["gpu_type"]
         ), axis=1
     )
 
@@ -533,9 +486,11 @@ def process_trace(sim_results_dir: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sim-results-dir", type=str, required=True)
+    parser.add_argument("--region", type=str, default="california", 
+                       choices=list(REGIONAL_ENERGY_CONFIGS.keys()),
+                       help="Region for energy calculations (default: california)")
     args = parser.parse_args()
-
-    process_trace(args.sim_results_dir)
+    process_trace(args.sim_results_dir, region=args.region)
 
 if __name__ == "__main__":
     main()

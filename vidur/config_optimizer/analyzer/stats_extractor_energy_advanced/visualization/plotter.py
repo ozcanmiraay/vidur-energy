@@ -29,10 +29,10 @@ class EnergyVisualizer:
             hovertemplate="Time: %{x:.2f}s<br>Energy: %{y:.4f} kWh<extra></extra>"
         ))
         
-        # Add MFU on secondary axis
+        # Add MFU on secondary axis - values are already percentages
         fig.add_trace(go.Scatter(
             x=df_downsampled["time"].tolist(),
-            y=(df_downsampled["mfu"] * 100).tolist(),
+            y=df_downsampled["mfu"].tolist(),  # No multiplication needed
             name="Model FLOPs Utilization",
             mode="lines",
             line=dict(color=COLORS['secondary'], width=2),
@@ -74,7 +74,14 @@ class EnergyVisualizer:
             ),
             plot_bgcolor="white",
             paper_bgcolor="white",
-            showlegend=True
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
         
         return fig
@@ -94,7 +101,7 @@ class EnergyVisualizer:
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=(df_downsampled["mfu"] * 100).tolist(),
+            x=df_downsampled["mfu"].tolist(),  # Removed the *100 multiplication here too
             y=df_downsampled["energy_efficiency"].tolist(),
             mode="markers",
             marker=dict(

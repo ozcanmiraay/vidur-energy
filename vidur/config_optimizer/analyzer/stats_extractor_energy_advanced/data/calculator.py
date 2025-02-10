@@ -9,18 +9,18 @@ class EnergyMetricsCalculator:
         self.region_config = region_config
 
     def interpolate_power(self, mfu: float) -> float:
-        """Interpolate power consumption based on MFU."""
-        # Define utilization points
-        util_points = np.array([0, 0.1, 0.5, 1.0])  # 0%, 10%, 50%, 100% utilization
-        power_points = np.array([
-            self.gpu_config.idle,        # Power at 0% utilization
-            self.gpu_config.low_util,    # Power at 10% utilization
-            self.gpu_config.med_util,    # Power at 50% utilization
-            self.gpu_config.high_util    # Power at 100% utilization
-        ])
+        """
+        Interpolate power consumption based on MFU using linear interpolation
+        between idle and max utilization states.
         
-        # Interpolate power consumption using linear interpolation
-        return float(np.interp(mfu, util_points, power_points))
+        Args:
+            mfu: Model FLOPs Utilization (0.0 to 1.0)
+        Returns:
+            Interpolated power consumption in Watts
+        """
+        # Linear interpolation: P = P_idle + (P_max - P_idle) * mfu
+        power = self.gpu_config.idle + (self.gpu_config.max_util - self.gpu_config.idle) * mfu
+        return float(power)
 
     def calculate_energy(self, gpu_hours: float, mfu: float) -> Dict[str, float]:
         """Calculate energy metrics based on GPU usage."""
