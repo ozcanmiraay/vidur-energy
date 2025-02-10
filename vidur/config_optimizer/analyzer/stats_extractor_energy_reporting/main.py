@@ -1,5 +1,6 @@
 import argparse
 from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.analyzer import SimulationEnergyAnalyzer
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.region_configs import REGIONAL_ENERGY_CONFIGS
 
 def main():
     parser = argparse.ArgumentParser(
@@ -13,7 +14,7 @@ def main():
     parser.add_argument(
         '--region',
         required=True,
-        choices=['california', 'washington'],
+        choices=list(REGIONAL_ENERGY_CONFIGS.keys()),
         help='Region for energy analysis'
     )
     
