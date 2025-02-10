@@ -112,7 +112,7 @@ def process_mfu_energy(run_dir: str, power_values: dict):
         logger.warning("Number of GPUs could not be determined. Defaulting to 1 GPU.")
         num_gpus = 1
 
-    mfu_energy_data = []
+    mfu_energy_power_data = []
 
     # Get the start time of the simulation
     start_time = datetime.now()  # or use a specific start time if needed
@@ -173,7 +173,7 @@ def process_mfu_energy(run_dir: str, power_values: dict):
             effective_power = interpolate_power(mfu, gpu_type)
             energy_consumption = calculate_energy_consumption(gpu_hrs, power_values, mfu, gpu_type)
 
-            mfu_energy_data.append({
+            mfu_energy_power_data.append({
                 "time": time_seconds,  # Original time in seconds
                 "time_extended": formatted_time,  # New column with ISO format datetime
                 "replica": replica_id,
@@ -185,8 +185,8 @@ def process_mfu_energy(run_dir: str, power_values: dict):
             })
 
     # Save results to a CSV
-    output_file = os.path.join(run_dir, "analysis/mfu_energy_data.csv")
-    pd.DataFrame(mfu_energy_data).to_csv(output_file, index=False)
+    output_file = os.path.join(run_dir, "analysis/mfu_energy_power_data.csv")
+    pd.DataFrame(mfu_energy_power_data).to_csv(output_file, index=False)
     logger.info(f"MFU and energy data saved to {output_file}")
 
 def extract_stat_from_request_metrics(
