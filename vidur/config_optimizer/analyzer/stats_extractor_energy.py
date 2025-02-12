@@ -15,9 +15,30 @@ from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.gpu
 logger = init_logger(__name__)
 
 def interpolate_power(mfu: float, gpu_type: str) -> float:
-    """Linear interpolation between idle and max utilization power states."""
+    """
+    Power interpolation considering that max GPU utilization (and thus max power draw)
+    can occur even at lower MFU values.
+    
+    Args:
+        mfu: Model FLOP Utilization (0-1)
+        gpu_type: Type of GPU (e.g., "a100")
+    
+    Notes:
+        - 100% GPU utilization (max power draw) can occur at MFU values as low as 20-45%
+        - Power should never exceed max_util (100% GPU utilization power)
+        - We use a more aggressive scaling for lower MFU values to reflect this
+    """
     gpu_config = GPU_POWER_CONFIGS[gpu_type]
-    power = gpu_config.idle + (gpu_config.max_util - gpu_config.idle) * mfu
+    
+    # Define the MFU threshold where we might hit max GPU utilization
+    TYPICAL_HIGH_MFU = 0.45  # Based on typical high MFU values for inference
+    
+    # More aggressive power scaling for lower MFU values
+    # This reflects that we can hit high GPU utilization even at lower MFU
+    utilization_factor = min(1.0, (mfu / TYPICAL_HIGH_MFU) ** 0.7)  # Power of 0.7 makes scaling more aggressive
+    
+    # Calculate power, capped at max_util
+    power = gpu_config.idle + (gpu_config.max_util - gpu_config.idle) * utilization_factor
     return power
 
 def get_gpu_power(sim_results_dir):

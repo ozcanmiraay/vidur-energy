@@ -10,16 +10,28 @@ class EnergyMetricsCalculator:
 
     def interpolate_power(self, mfu: float) -> float:
         """
-        Interpolate power consumption based on MFU using linear interpolation
-        between idle and max utilization states.
+        Power interpolation considering that max GPU utilization (and thus max power draw)
+        can occur even at lower MFU values.
         
         Args:
-            mfu: Model FLOPs Utilization (0.0 to 1.0)
+            mfu: Model FLOP Utilization (0.0 to 1.0)
         Returns:
             Interpolated power consumption in Watts
+        
+        Notes:
+            - 100% GPU utilization (max power draw) can occur at MFU values as low as 20-45%
+            - Power should never exceed max_util (100% GPU utilization power)
+            - We use a more aggressive scaling for lower MFU values to reflect this
         """
-        # Linear interpolation: P = P_idle + (P_max - P_idle) * mfu
-        power = self.gpu_config.idle + (self.gpu_config.max_util - self.gpu_config.idle) * mfu
+        # Define the MFU threshold where we might hit max GPU utilization
+        TYPICAL_HIGH_MFU = 0.45  # Based on typical high MFU values for inference
+        
+        # More aggressive power scaling for lower MFU values
+        # This reflects that we can hit high GPU utilization even at lower MFU
+        utilization_factor = min(1.0, (mfu / TYPICAL_HIGH_MFU) ** 0.7)  # Power of 0.7 makes scaling more aggressive
+        
+        # Calculate power, capped at max_util
+        power = self.gpu_config.idle + (self.gpu_config.max_util - self.gpu_config.idle) * utilization_factor
         return float(power)
 
     def calculate_energy(self, gpu_hours: float, mfu: float) -> Dict[str, float]:
