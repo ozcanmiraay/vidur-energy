@@ -9,6 +9,8 @@ class GPUPowerConfig:
     manufacturing_emissions: float  # gCO2eq for manufacturing (Scope 3)
     memory_bandwidth: float  # GB/s
     memory_capacity: float  # GB
+    peak_flops_fp16: float  # Peak TFLOPS for FP16/BF16
+    peak_flops_fp32: float  # Peak TFLOPS for FP32
 
 # Enhanced GPU power configurations
 GPU_POWER_CONFIGS = {
@@ -18,7 +20,9 @@ GPU_POWER_CONFIGS = {
         tdp=400,
         manufacturing_emissions=135.3,
         memory_bandwidth=1935,
-        memory_capacity=80
+        memory_capacity=80,
+        peak_flops_fp16=312.0,  # 312 TFLOPS for FP16/BF16
+        peak_flops_fp32=156.0,  # 156 TFLOPS for FP32
     ),
     "h100": GPUPowerConfig(
         idle=900.0,  # Higher idle due to larger chip
@@ -26,7 +30,9 @@ GPU_POWER_CONFIGS = {
         tdp=700,  # Actual TDP
         manufacturing_emissions=150.0,  # Higher due to larger die
         memory_bandwidth=3350,  # Actual spec
-        memory_capacity=80  # Actual spec
+        memory_capacity=80,  # Actual spec
+        peak_flops_fp16=312.0,  # 312 TFLOPS for FP16/BF16
+        peak_flops_fp32=156.0,  # 156 TFLOPS for FP32
     ),
     "a40": GPUPowerConfig(
         idle=400.0,  # Lower idle than A100
@@ -34,6 +40,8 @@ GPU_POWER_CONFIGS = {
         tdp=300,  # Actual TDP
         manufacturing_emissions=100.0,  # Lower due to smaller die
         memory_bandwidth=696,  # Actual spec
-        memory_capacity=48  # Actual spec
+        memory_capacity=48,  # Actual spec
+        peak_flops_fp16=312.0,  # 312 TFLOPS for FP16/BF16
+        peak_flops_fp32=156.0,  # 156 TFLOPS for FP32
     )
 } 

@@ -51,15 +51,21 @@ class EnergyMetricsCalculator:
             self.gpu_config.manufacturing_emissions * gpu_hours
         )
         
-        # Calculate energy efficiency (FLOPS/W)
-        theoretical_flops = self.gpu_config.memory_bandwidth * 1e9  # Convert GB/s to B/s
-        actual_flops = theoretical_flops * mfu
+        # Calculate energy efficiency (TFLOPS/W)
+        # Most LLM inference uses FP16/BF16
+        theoretical_peak_flops = self.gpu_config.peak_flops_fp16 * 1e12  # Convert TFLOPS to FLOPS
+        actual_flops = theoretical_peak_flops * mfu
+        
+        # Calculate FLOPS/Watt
         energy_efficiency = actual_flops / effective_power if effective_power > 0 else 0
+        
+        # Convert to more readable TFLOPS/W
+        energy_efficiency = energy_efficiency / 1e12
         
         return {
             'energy_kwh': energy_kwh,
             'energy_cost': energy_cost,
             'carbon_emissions': carbon_emissions,
-            'energy_efficiency': energy_efficiency,
+            'energy_efficiency': energy_efficiency,  # Now in TFLOPS/W
             'effective_power': effective_power
         } 
