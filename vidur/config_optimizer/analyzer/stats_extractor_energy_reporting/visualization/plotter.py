@@ -87,7 +87,7 @@ class EnergyVisualizer:
         return fig
 
     def create_efficiency_plot(self, df: pd.DataFrame) -> go.Figure:
-        """Create scatter plot of energy efficiency vs MFU."""
+        """Create scatter plot of power usage vs MFU."""
         df = df.dropna()
         
         # Downsample if needed
@@ -101,51 +101,38 @@ class EnergyVisualizer:
         fig = go.Figure()
         
         fig.add_trace(go.Scatter(
-            x=df_downsampled["mfu"].tolist(),  # Removed the *100 multiplication here too
-            y=df_downsampled["energy_efficiency"].tolist(),
+            x=df_downsampled["mfu"].tolist(),
+            y=df_downsampled["effective_power"].tolist(),
             mode="markers",
             marker=dict(
                 size=8,
                 color=df_downsampled["effective_power"].tolist(),
-                colorscale=[[i/4, color] for i, color in enumerate(COLORS['green_palette'])],
+                colorscale=[
+                    [0, COLORS['green_palette'][0]],    # Lightest green
+                    [0.25, COLORS['green_palette'][1]], 
+                    [0.5, COLORS['green_palette'][2]],
+                    [0.75, COLORS['green_palette'][3]],
+                    [1, COLORS['green_palette'][4]]     # Darkest green
+                ],
                 showscale=True,
                 colorbar=dict(
                     title=dict(
-                        text="Effective Power (W)",
+                        text="Power Usage (W)",
                         font=dict(color=COLORS['text'])
-                    ),
-                    tickfont=dict(color=COLORS['text'])
+                    )
                 )
             ),
             hovertemplate=(
                 "MFU: %{x:.1f}%<br>" +
-                "Efficiency: %{y:.4f} FLOPS/W<br>" +
-                "Power: %{marker.color:.1f}W" +
+                "Power: %{y:.1f}W<br>" +
                 "<extra></extra>"
             )
         ))
         
         fig.update_layout(
-            title=dict(
-                text="Energy Efficiency vs Model Utilization",
-                font=dict(color=COLORS['text'])
-            ),
-            xaxis=dict(
-                title=dict(
-                    text="Model FLOPs Utilization (%)",
-                    font=dict(color=COLORS['text'])
-                ),
-                gridcolor=COLORS['green_palette'][0],
-                zeroline=False
-            ),
-            yaxis=dict(
-                title=dict(
-                    text="Energy Efficiency (FLOPS/W)",
-                    font=dict(color=COLORS['text'])
-                ),
-                gridcolor=COLORS['green_palette'][0],
-                zeroline=False
-            ),
+            title="Power Usage vs Model Utilization",
+            xaxis_title="Model FLOPs Utilization (%)",
+            yaxis_title="Power Usage (W)",
             plot_bgcolor="white",
             paper_bgcolor="white"
         )

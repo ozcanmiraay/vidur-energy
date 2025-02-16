@@ -4,9 +4,8 @@
     <title>Energy Consumption Analysis Report</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <style>
-        {{ css }}
-    </style>
+    <!-- Move CSS to a data attribute to avoid linting errors -->
+    <style id="dynamic-css"></style>
 </head>
 <body>
     <div class="header">
@@ -58,8 +57,13 @@
                 </div>
                 <div class="metric-item">
                     <i class="fas fa-tachometer-alt"></i>
-                    <div class="metric-value">{{ "%.2f"|format(metrics.energy_efficiency) }}</div>
-                    <div class="metric-label">Energy Efficiency (FLOPS/W)</div>
+                    <div class="metric-value">{{ "%.2f"|format(metrics.mfu_mean) }}%</div>
+                    <div class="metric-label">Average Model Utilization</div>
+                </div>
+                <div class="metric-item">
+                    <i class="fas fa-bolt"></i>
+                    <div class="metric-value">{{ "%.2f"|format(metrics.power_mean) }}W</div>
+                    <div class="metric-label">Average Power Usage</div>
                 </div>
             </div>
         </div>
@@ -98,49 +102,62 @@
         </div>
     </div>
 
+    <!-- Move all dynamic data to a single JSON script tag -->
+    <script id="template-data" type="application/json">
+    {
+        "css": {{ css|tojson|safe }},
+        "metrics": {{ metrics|tojson|safe }},
+        "config": {{ config|tojson|safe }},
+        "regional_comparison": {{ regional_comparison|tojson|safe }},
+        "plots": {{ plots|tojson|safe }}
+    }
+    </script>
+
     <script>
+        // Load data and CSS when document is ready
         document.addEventListener('DOMContentLoaded', function() {
+            // Get template data
+            const templateData = JSON.parse(document.getElementById('template-data').textContent);
+            
+            // Apply CSS
+            document.getElementById('dynamic-css').textContent = templateData.css;
+
             // Show loading state
             document.querySelectorAll('.plot-container').forEach(container => {
                 container.innerHTML = '<div class="loading">Loading visualization...</div>';
             });
 
-            // Function to create plot with loading indicator
+            // Create plots with loading indicator
             function createPlot(elementId, plotData) {
                 try {
                     const container = document.getElementById(elementId);
-                    const data = JSON.parse(plotData);
-                    
-                    Plotly.newPlot(elementId, data.data, data.layout, {
+                    Plotly.newPlot(elementId, plotData.data, plotData.layout, {
                         responsive: true,
                         displayModeBar: true,
                         displaylogo: false
                     }).then(() => {
                         container.querySelector('.loading')?.remove();
-                        window.addEventListener('resize', () => {
-                            Plotly.Plots.resize(elementId);
-                        });
-                    }).catch((error) => {
-                        console.error('Error in plot creation:', error);
+                    }).catch(error => {
+                        console.error('Plot creation error:', error);
                         container.innerHTML = '<div class="error">Error loading visualization</div>';
                     });
                 } catch (error) {
-                    console.error('Error parsing plot data:', error);
+                    console.error('Plot data parsing error:', error);
                     document.getElementById(elementId).innerHTML = 
                         '<div class="error">Error loading visualization</div>';
                 }
             }
 
-            // Plot data
-            const plotData = {
-                'energy_time_series': {{ plots.energy_time_series | tojson }},
-                'efficiency_scatter': {{ plots.efficiency_scatter | tojson }},
-                'regional_impact': {{ plots.regional_impact | tojson }}
-            };
+            // Create each plot
+            Object.entries(templateData.plots).forEach(([id, data]) => {
+                createPlot(id, JSON.parse(data));
+            });
 
-            // Create plots with a slight delay between each
-            Object.entries(plotData).forEach(([id, data], index) => {
-                setTimeout(() => createPlot(id, data), index * 300);
+            // Make plots responsive
+            window.addEventListener('resize', () => {
+                Object.keys(templateData.plots).forEach(id => {
+                    Plotly.Plots.resize(id);
+                });
             });
         });
     </script>

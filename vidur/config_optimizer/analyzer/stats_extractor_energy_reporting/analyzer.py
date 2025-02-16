@@ -52,20 +52,17 @@ class SimulationEnergyAnalyzer:
             for _, row in mfu_df.iterrows():
                 execution_time = row.get('model_execution_time', row['execution_time'])
                 metrics = calculator.calculate_energy(
-                    gpu_hours=execution_time / 3600,  # Convert to hours
-                    mfu=row['mfu']
+                    gpu_hours=execution_time / 3600,
+                    mfu=row['mfu']  # MFU is already in percentage
                 )
+                
                 energy_data.append({
                     'time': row['time'],
-                    'mfu': row['mfu'],
-                    'replica': row['replica'],
-                    'stage': row['stage'],
-                    'batch_id': row['batch_id'],
-                    'num_tokens': row['num_tokens'],
-                    'batch_size': row['batch_size'],
+                    'mfu': row['mfu'],  # Remove the *100 - MFU is already in percentage
                     'energy': metrics['energy_kwh'],
-                    'energy_efficiency': metrics['energy_efficiency'],
-                    'effective_power': metrics['effective_power']
+                    'effective_power': metrics['effective_power'],
+                    'batch_size': row['batch_size'],
+                    'num_tokens': row['num_tokens']
                 })
             
             energy_df = pd.DataFrame(energy_data)
@@ -101,7 +98,8 @@ class SimulationEnergyAnalyzer:
                     energy_df['energy'].sum() * region_config.carbon_intensity +
                     gpu_config.manufacturing_emissions * (energy_df['time'].max() / 3600)
                 ),
-                'energy_efficiency': energy_df['energy_efficiency'].mean()
+                'mfu_mean': energy_df['mfu'].mean(),
+                'power_mean': energy_df['effective_power'].mean()
             }
             
             # Generate report
