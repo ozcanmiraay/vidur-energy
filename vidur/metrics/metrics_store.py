@@ -24,6 +24,7 @@ from vidur.metrics.constants import (
 from vidur.metrics.data_series import DataSeries
 from vidur.metrics.series_average_meter import SeriesAverageMeter
 from vidur.utils.mfu_calculator import MFUCalculator
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.gpu_configs import GPU_POWER_CONFIGS
 
 logger = init_logger(__name__)
 
@@ -61,10 +62,19 @@ class MetricsStore:
             self._simulation_config.cluster_config.replica_config.num_pipeline_stages
         )
 
-        # Initialize MFU meters with is_mfu=True
+        # Initialize MFU meters
         self._replica_mfu = [
             [
                 SeriesAverageMeter("time", "mfu", is_mfu=True)
+                for _ in range(self._num_pipeline_stages)
+            ]
+            for _ in range(self._num_replicas)
+        ]
+
+        # Initialize power meters (similar to MFU)
+        self._replica_power = [
+            [
+                SeriesAverageMeter("time", "power", is_mfu=True)  # Using is_mfu=True to get same metadata structure
                 for _ in range(self._num_pipeline_stages)
             ]
             for _ in range(self._num_replicas)
@@ -466,6 +476,11 @@ class MetricsStore:
                     f"replica_{replica_idx + 1}_stage_{stage_idx + 1}_mfu",
                     base_plot_path,
                 )
+                # Add power metrics
+                self._replica_power[replica_idx][stage_idx].print_stats(
+                    f"replica_{replica_idx + 1}_stage_{stage_idx + 1}_power",
+                    base_plot_path,
+                )
 
     @if_write_metrics
     def plot(self) -> None:
@@ -694,22 +709,24 @@ class MetricsStore:
             return
 
         mfu = self._mfu_calculator.get_mfu(batch_stage)
+        # Calculate power based on MFU
+        power = self.interpolate_power(mfu/100.0)  # Divide by 100 since MFU is in percentage
         
-        # Create metadata dictionary with batch size
         metadata = {
             "batch_id": batch_stage._batch_id,
             "batch_stage_id": batch_stage._id,
-            "num_tokens": sum(batch_stage.num_tokens),  # Total tokens in batch
-            "batch_size": batch_stage.size,  # Number of requests in batch
+            "num_tokens": sum(batch_stage.num_tokens),
+            "batch_size": batch_stage.size,
             "execution_time": batch_stage.execution_time,
             "model_execution_time": batch_stage.model_execution_time
         }
 
-        # Log only if MFU is different from last logged value
+        # Log MFU
         last_logged_mfu = self._replica_mfu[replica_id - 1][stage_id - 1]._peek_y()
         if mfu != last_logged_mfu:
             self._replica_mfu[replica_id - 1][stage_id - 1].put(time, mfu, metadata)
-            logger.debug(f"Logged MFU={mfu} for time={time}, replica={replica_id}, stage={stage_id}")
+            # Also log corresponding power
+            self._replica_power[replica_id - 1][stage_id - 1].put(time, power, metadata)
 
         # Accumulate time and log the MFU for the distribution
         if len(self._mfu_distribution) > 0:
@@ -834,8 +851,42 @@ class MetricsStore:
         if not self._config.store_utilization_metrics:
             return
 
-        # Log only if MFU is already non-zero in the last state
+        # Log zero MFU and corresponding power when batch stage ends
         last_logged_mfu = self._replica_mfu[replica_id - 1][stage_id - 1]._peek_y()
         if last_logged_mfu != 0:
-            logger.debug(f"Logging zero MFU for replica={replica_id}, stage={stage_id} at time={time}")
             self._replica_mfu[replica_id - 1][stage_id - 1].put(time, 0)
+            self._replica_power[replica_id - 1][stage_id - 1].put(time, self.interpolate_power(0))
+
+    def interpolate_power(self, mfu: float) -> float:
+        """Calculate power consumption based on MFU value.
+        
+        Args:
+            mfu: Model FLOP Utilization (0-1)
+        
+        Returns:
+            Power consumption in Watts
+        """
+        gpu_type = self._simulation_config.cluster_config.replica_config.device.lower()
+        gpu_config = GPU_POWER_CONFIGS[gpu_type]
+        
+        # Define the MFU threshold where we might hit max GPU utilization
+        TYPICAL_HIGH_MFU = 0.45  # Based on typical high MFU values for inference
+        
+        # More aggressive power scaling for lower MFU values
+        utilization_factor = min(1.0, (mfu / TYPICAL_HIGH_MFU) ** 0.7)
+        
+        # Calculate power, capped at max_util
+        power = gpu_config.idle + (gpu_config.max_util - gpu_config.idle) * utilization_factor
+        return power
+
+    def get_current_power(self) -> float:
+        """Get current total power consumption across all replicas and stages."""
+        total_power = 0.0
+        
+        for replica_idx in range(self._num_replicas):
+            for stage_idx in range(self._num_pipeline_stages):
+                current_mfu = self._replica_mfu[replica_idx][stage_idx]._peek_y() or 0.0
+                stage_power = self.interpolate_power(current_mfu)
+                total_power += stage_power
+                
+        return total_power
