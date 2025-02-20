@@ -420,7 +420,9 @@ def process_trace(sim_results_dir: str, region: str = "california"):
     )
 
     mfu_stats = extract_utilization_stats(sim_results_dir, "mfu")
+    power_stats = extract_utilization_stats(sim_results_dir, "power")
     df["mfu_mean"] = mfu_stats["mfu_mean"]
+    df["power_mean"] = power_stats["power_mean"]
 
     # Quietly check for capacity calculations without warnings
     if "poisson_request_interval_generator_qps" in df.columns:
@@ -505,6 +507,7 @@ def process_trace(sim_results_dir: str, region: str = "california"):
         "total_runs": len(run_dirs),
         "valid_runs": len(all_results),
         "mfu_mean": mfu_mean,
+        "average_power_watts": df["power_mean"].mean(),
         "total_energy_kwh": total_energy_kwh,
         "average_energy_per_request": energy_per_request,
         "total_carbon_emissions_gco2eq": total_carbon_emissions,
