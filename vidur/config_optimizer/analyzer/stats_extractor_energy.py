@@ -263,16 +263,24 @@ def extract_stats_from_cdf_df(
 def extract_utilization_stats(run_dir: str, stat_name: str):
     stat_files = glob.glob(f"{run_dir}/plots/replica_*{stat_name}.json")
     vals = []
+    max_vals = []  # New list to store peak values
+
     for stat_file in stat_files:
         stat = json.load(open(stat_file))
         for k, v in stat.items():
             if k.endswith("weighted_mean"):
                 vals.append(v)
+            if k.endswith("_max"):  # Extract max power
+                max_vals.append(v)
 
     if len(vals) == 0:
-        return {f"{stat_name}_mean": np.nan}
+        return {f"{stat_name}_mean": np.nan, f"{stat_name}_peak": np.nan}
 
-    return {f"{stat_name}_mean": sum(vals) / len(vals)}
+    return {
+        f"{stat_name}_mean": sum(vals) / len(vals),
+        f"{stat_name}_peak": max(max_vals) if max_vals else np.nan  # Use max if available
+    }
+
 
 
 def process_run(run_dir: str):
@@ -322,6 +330,17 @@ def process_run(run_dir: str):
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return None
+    
+    # Extract Prefill and Decode token configuration
+    try:
+        prefill_tokens_per_request = config["request_generator_config"]["length_generator_config"]["prefill_tokens"]
+        decode_tokens_per_request = config["request_generator_config"]["length_generator_config"]["decode_tokens"]
+        total_tokens_processed = prefill_tokens_per_request + decode_tokens_per_request
+    except KeyError:
+        logger.warning("Prefill and decode token counts not found in config. Setting to default values.")
+        prefill_tokens_per_request = np.nan
+        decode_tokens_per_request = np.nan
+        total_tokens_processed = np.nan
 
     # Check if replica_scheduler_config exists and access the scheduler name
     if "replica_scheduler_config" in config:
@@ -353,14 +372,64 @@ def process_run(run_dir: str):
     )
     batch_num_tokens_cdf = extract_stats_from_cdf_df(
         batch_num_tokens_df, "batch_num_tokens", extract_all=True
-    )
+    ) 
+
+    def extract_batch_size_stats(run_dir):
+        """
+        Extract actual batch size statistics by reading from the 'mfu_distribution' entries in MFU JSON files.
+        """
+        batch_size_files = glob.glob(f"{run_dir}/plots/replica_*_stage_*_mfu.json")
+
+        all_batch_sizes = []
+        batch_stage_counts = []
+
+        for file in batch_size_files:
+            with open(file, "r") as f:
+                data = json.load(f)
+
+            # Dynamically get the correct key
+            for key, value in data.items():
+                if key.endswith("_mfu_distribution") and isinstance(value, list):
+                    # Extract batch_size from valid entries
+                    batch_sizes = [entry["batch_size"] for entry in value if "batch_size" in entry]
+
+                    if batch_sizes:
+                        all_batch_sizes.extend(batch_sizes)
+                        batch_stage_counts.extend([1] * len(batch_sizes))  # Assign weight of 1 per batch size
+
+        if not all_batch_sizes:
+            print("⚠️ No batch sizes found in any files!")
+            return {"actual_batch_size_weighted_mean": np.nan, "actual_batch_size_std": np.nan}
+
+        # Convert lists to NumPy arrays
+        batch_sizes_array = np.array(all_batch_sizes)
+        batch_stage_counts_array = np.array(batch_stage_counts)
+
+        # Ensure the arrays have the same shape
+        if batch_sizes_array.shape != batch_stage_counts_array.shape:
+            print(f"Shape mismatch detected: batch_sizes {batch_sizes_array.shape}, batch_stage_counts {batch_stage_counts_array.shape}")
+            batch_stage_counts_array = np.ones_like(batch_sizes_array)  # Assign equal weights if mismatch occurs
+
+        # Compute weighted mean batch size
+        weighted_mean_batch_size = np.average(batch_sizes_array, weights=batch_stage_counts_array)
+        batch_size_std = np.std(batch_sizes_array)
+
+        return {
+            "actual_batch_size_weighted_mean": weighted_mean_batch_size,
+            "actual_batch_size_std": batch_size_std,
+        }
+
+
+    
     memory_usage_stats = extract_utilization_stats(run_dir, "memory_usage")
     mfu_stats = extract_utilization_stats(run_dir, "mfu")
     busy_time_percent_stats = extract_utilization_stats(run_dir, "busy_time_percent")
-    runtime = request_completion_time_series_df["Time (sec)"].max() 
+    runtime = request_completion_time_series_df["Time (sec)"].max()
+    batch_size_stats = extract_batch_size_stats(run_dir)
 
     config.update(
         {
+            **batch_size_stats,
             **request_scheduling_delay_stats,
             **request_e2e_time_normalized_stats,
             **tbt_stats,
@@ -374,6 +443,9 @@ def process_run(run_dir: str):
             **batch_size_cdf,
             **batch_num_tokens_cdf,
             "runtime": runtime,
+            "prefill_tokens_per_request": prefill_tokens_per_request,
+            "decode_tokens_per_request": decode_tokens_per_request,
+            "total_tokens_processed": total_tokens_processed,
         }
     ) 
     return config
@@ -390,6 +462,7 @@ def get_sim_time_from_request_completion(run_dir: str):
 
 def process_trace(sim_results_dir: str, region: str = "california"):
     analysis_dir = f"{sim_results_dir}/analysis"
+
 
     if os.path.exists(f"{analysis_dir}/stats.csv") and os.path.exists(
         f"{analysis_dir}/simulation_stats.yml"
@@ -410,6 +483,15 @@ def process_trace(sim_results_dir: str, region: str = "california"):
 
     df = pd.DataFrame(all_results)
 
+
+    # Extract new fields from df safely
+    prefill_tokens_per_request = df["prefill_tokens_per_request"].iloc[0] if "prefill_tokens_per_request" in df.columns else np.nan
+    decode_tokens_per_request = df["decode_tokens_per_request"].iloc[0] if "decode_tokens_per_request" in df.columns else np.nan
+    total_tokens_processed = df["total_tokens_processed"].sum() if "total_tokens_processed" in df.columns else np.nan
+    df["actual_batch_size_weighted_mean"] = df["actual_batch_size_weighted_mean"]
+    df["actual_batch_size_std"] = df["actual_batch_size_std"]
+
+
     df["num_gpus"] = (
         df["cluster_config"].apply(lambda x: x["num_replicas"])
     * df["cluster_config"].apply(lambda x: x["replica_config"]["tensor_parallel_size"])
@@ -423,6 +505,7 @@ def process_trace(sim_results_dir: str, region: str = "california"):
     power_stats = extract_utilization_stats(sim_results_dir, "power")
     df["mfu_mean"] = mfu_stats["mfu_mean"]
     df["power_mean"] = power_stats["power_mean"]
+    df["power_peak"] = power_stats["power_peak"]
 
     # Quietly check for capacity calculations without warnings
     if "poisson_request_interval_generator_qps" in df.columns:
@@ -508,14 +591,34 @@ def process_trace(sim_results_dir: str, region: str = "california"):
         "valid_runs": len(all_results),
         "mfu_mean": mfu_mean,
         "average_power_watts": df["power_mean"].mean(),
+        "peak_power_watts": df["power_peak"].max(),
         "total_energy_kwh": total_energy_kwh,
         "average_energy_per_request": energy_per_request,
         "total_carbon_emissions_gco2eq": total_carbon_emissions,
     }
 
+    simulation_stats.update({
+    "num_requests": num_requests,
+    "prefill_tokens_per_request": prefill_tokens_per_request,
+    "decode_tokens_per_request": decode_tokens_per_request,
+    "total_tokens_processed": num_requests * total_tokens_processed,  # Sum over all requests
+    })
+
+    simulation_stats.update({
+    "actual_batch_size_weighted_mean": df["actual_batch_size_weighted_mean"].mean(),
+    "actual_batch_size_std": df["actual_batch_size_std"].mean(),
+    })
+
+    simulation_stats["tokens_per_second"] = (simulation_stats["total_tokens_processed"] / sim_time) if sim_time > 0 else np.nan
+
+
+    # Convert all NumPy types to native Python types before JSON serialization
+    simulation_stats = {k: (int(v) if isinstance(v, np.integer) else v) for k, v in simulation_stats.items()}
+
     json.dump(
         simulation_stats, open(f"{analysis_dir}/simulation_stats_with_energy.json", "w"), indent=4
     )
+
 
 def main():
     parser = argparse.ArgumentParser()
