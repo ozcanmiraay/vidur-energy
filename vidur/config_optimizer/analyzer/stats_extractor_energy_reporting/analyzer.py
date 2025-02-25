@@ -53,7 +53,7 @@ class SimulationEnergyAnalyzer:
                 execution_time = row.get('model_execution_time', row['execution_time'])
                 metrics = calculator.calculate_energy(
                     gpu_hours=execution_time / 3600,  # Convert to hours
-                    mfu=row['mfu']
+                    mfu=row['mfu']/100.0
                 )
                 energy_data.append({
                     'time': row['time'],
