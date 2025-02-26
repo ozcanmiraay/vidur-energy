@@ -356,6 +356,15 @@ def process_run(run_dir: str):
     request_e2e_time_normalized_stats = extract_stat_from_request_metrics(
         request_metrics_df, "request_e2e_time_normalized"
     )
+    # Extract additional latency and throughput statistics
+    e2e_latency_stats = extract_stat_from_request_metrics(
+        request_metrics_df, "request_e2e_time", "e2e_latency"
+    )
+
+    decode_latency_stats = extract_stat_from_request_metrics(
+        request_metrics_df, "decode_time_execution_plus_preemption_normalized", "decode_latency"
+    )
+
     ttft_stats = extract_stat_from_request_metrics(
         request_metrics_df, "prefill_e2e_time", "ttft"
     )
@@ -426,6 +435,9 @@ def process_run(run_dir: str):
     busy_time_percent_stats = extract_utilization_stats(run_dir, "busy_time_percent")
     runtime = request_completion_time_series_df["Time (sec)"].max()
     batch_size_stats = extract_batch_size_stats(run_dir)
+    # Compute throughput: Requests per second and tokens per second
+    requests_per_second = len(request_metrics_df) / runtime if runtime > 0 else np.nan
+    tokens_per_second = total_tokens_processed / runtime if runtime > 0 else np.nan
 
     config.update(
         {
@@ -442,10 +454,14 @@ def process_run(run_dir: str):
             **batch_size_stats,
             **batch_size_cdf,
             **batch_num_tokens_cdf,
+            **e2e_latency_stats, 
+            **decode_latency_stats,
             "runtime": runtime,
             "prefill_tokens_per_request": prefill_tokens_per_request,
             "decode_tokens_per_request": decode_tokens_per_request,
             "total_tokens_processed": total_tokens_processed,
+            "requests_per_second": requests_per_second,
+            "tokens_per_second": tokens_per_second,
         }
     ) 
     return config
@@ -608,6 +624,14 @@ def process_trace(sim_results_dir: str, region: str = "california"):
     "actual_batch_size_weighted_mean": df["actual_batch_size_weighted_mean"].mean(),
     "actual_batch_size_std": df["actual_batch_size_std"].mean(),
     })
+
+    simulation_stats.update({
+    "requests_per_second": df["requests_per_second"].mean(),
+    "tokens_per_second": df["tokens_per_second"].mean(),
+    "e2e_latency_95p": df["e2e_latency_95%"].mean(),  # 95th percentile end-to-end latency
+    "decode_latency_95p": df["decode_latency_95%"].mean(),  # 95th percentile decode latency
+    })
+
 
     simulation_stats["tokens_per_second"] = (simulation_stats["total_tokens_processed"] / sim_time) if sim_time > 0 else np.nan
 
