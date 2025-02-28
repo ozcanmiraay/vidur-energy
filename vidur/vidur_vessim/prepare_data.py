@@ -31,12 +31,14 @@ def prepare_vessim_data(
             "power_usage_watts": "mean",
             "energy_usage_joules": "mean",
             "gpu_hours": "mean",
+            "model_flop_utilization": "mean",
         })
     elif analysis_type == "total power analysis":
         aggregated = vessim_ready_data.resample(agg_freq).agg({
             "power_usage_watts": "sum",
             "energy_usage_joules": "sum",
             "gpu_hours": "sum",
+            "model_flop_utilization": "mean",
         })
         aggregated["batch_stage_count"] = vessim_ready_data.resample(agg_freq)["power_usage_watts"].count()
 

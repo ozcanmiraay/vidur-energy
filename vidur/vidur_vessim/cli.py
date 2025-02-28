@@ -59,12 +59,12 @@ def main():
     sim_end_time = vessim_ready_data.index[-1]
 
     # Original logic preserved:
-    local_time = sim_start_time.tz_localize("UTC")  # Assume it's initially UTC
-    converted_time = local_time.tz_convert(location_timezone)  # Convert to local timezone
-    utc_naive_time = converted_time.tz_localize(None)  # Remove timezone info but keep UTC time
+    local_time = sim_start_time.tz_localize('UTC')  # First, localize to UTC
+    converted_time = local_time.tz_convert(location_timezone)  # Convert to the actual location
+    utc_naive_time = converted_time.tz_localize(None)  # Drop timezone info, but keep the correct time
 
     # Same for end time
-    local_end_time = sim_end_time.tz_localize("UTC")
+    local_end_time = sim_end_time.tz_localize('UTC')
     converted_end_time = local_end_time.tz_convert(location_timezone)
     utc_naive_end_time = converted_end_time.tz_localize(None)
 
