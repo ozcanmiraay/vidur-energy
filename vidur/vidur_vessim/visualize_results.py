@@ -206,6 +206,38 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
     if "carbon_intensity.p" in df.columns:
         emissions_df = calculate_carbon_emissions(df, step_size)
         
+        # Calculate totals for metrics
+        total_gross = emissions_df['gross_emissions'].sum()
+        total_offset = emissions_df['renewable_offset'].sum()
+        total_net = emissions_df['net_emissions'].sum()
+        
+        # Calculate intensity metrics
+        avg_intensity = df['carbon_intensity.p'].mean()
+        peak_intensity = df['carbon_intensity.p'].max()
+        min_intensity = df['carbon_intensity.p'].min()
+        low_carbon_hours = (df['carbon_intensity.p'] < 100).sum() * step_size / 3600
+        high_carbon_hours = (df['carbon_intensity.p'] > 200).sum() * step_size / 3600
+        
+        if log_metrics:
+            with open(log_path, "a") as log_file:
+                log_file.write("\n🌍 CARBON EMISSIONS ANALYSIS\n")
+                log_file.write("="*50 + "\n")
+                log_file.write("\n📊 Emissions Summary:\n")
+                log_file.write(f"• Total Emissions from Power Usage: {format_emissions(total_gross)}\n")
+                log_file.write(f"• Emissions Offset by Solar: {format_emissions(total_offset)}\n")
+                log_file.write(f"• Final Carbon Footprint: {format_emissions(total_net)}\n")
+                log_file.write(f"• Percentage Offset by Renewables: {(total_offset/total_gross)*100:.1f}%\n")
+                
+                log_file.write("\n📈 Carbon Intensity Metrics:\n")
+                log_file.write(f"• Average: {avg_intensity:.1f} gCO₂/kWh\n")
+                log_file.write(f"• Peak: {peak_intensity:.1f} gCO₂/kWh\n")
+                log_file.write(f"• Minimum: {min_intensity:.1f} gCO₂/kWh\n")
+                
+                log_file.write("\n⏱️ Time Analysis:\n")
+                log_file.write(f"• Low Carbon Hours (<100 gCO₂/kWh): {low_carbon_hours:.1f} hours\n")
+                log_file.write(f"• High Carbon Hours (>200 gCO₂/kWh): {high_carbon_hours:.1f} hours\n")
+                log_file.write("="*50 + "\n")
+
         # Calculate totals and determine units
         max_emission = max(
             abs(emissions_df['gross_emissions'].cumsum().max()),
