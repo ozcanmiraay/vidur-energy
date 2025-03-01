@@ -206,20 +206,55 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
     if "carbon_intensity.p" in df.columns:
         emissions_df = calculate_carbon_emissions(df, step_size)
         
-        # Calculate totals
-        total_gross = emissions_df['gross_emissions'].sum()
-        total_offset = emissions_df['renewable_offset'].sum()
-        total_net = emissions_df['net_emissions'].sum()
+        # Calculate totals and determine units
+        max_emission = max(
+            abs(emissions_df['gross_emissions'].cumsum().max()),
+            abs(emissions_df['renewable_offset'].cumsum().max())
+        )
+        y_scale = 1000 if max_emission >= 1000 else 1
+        y_unit = "kg" if max_emission >= 1000 else "g"
         
-        # File logging
-        with open(log_path, "a") as log_file:
-            log_file.write("\n🌍 CARBON EMISSIONS ANALYSIS\n")
-            log_file.write("="*50 + "\n")
-            log_file.write("\n📊 Emissions Summary:\n")
-            log_file.write(f"• Total Emissions from Power Usage: {format_emissions(total_gross)}\n")
-            log_file.write(f"• Emissions Offset by Solar: {format_emissions(total_offset)}\n")
-            log_file.write(f"• Final Carbon Footprint: {format_emissions(total_net)}\n")
-            log_file.write(f"• Percentage Offset by Renewables: {(total_offset/total_gross)*100:.1f}%\n")
+        # Create plot with more space between subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), height_ratios=[3, 1])
+        fig.suptitle('Carbon Footprint Analysis', fontsize=16, y=0.95)
+        
+        # Top plot - Emissions
+        ax1.plot(df.index, emissions_df['gross_emissions'].cumsum() / y_scale, 
+                color="#FF6B6B", label="Total Emissions", linewidth=2)
+        ax1.plot(df.index, emissions_df['renewable_offset'].cumsum() / y_scale, 
+                color="#4ECB71", label="Solar Offset", linewidth=2)
+        ax1.plot(df.index, emissions_df['net_emissions'].cumsum() / y_scale, 
+                color="#9B59B6", label="Net Footprint", linewidth=2.5)
+        
+        # Simplified fill
+        ax1.fill_between(df.index, 0, emissions_df['net_emissions'].cumsum() / y_scale, 
+                        color="#9B59B6", alpha=0.1)
+        
+        ax1.set_ylabel(f"Cumulative CO₂ ({y_unit})", fontsize=12)
+        ax1.legend(fontsize=10, loc='upper left', framealpha=0.9)
+        ax1.grid(True, alpha=0.2)
+        
+        # Bottom plot - Carbon Intensity
+        ax2.plot(df.index, df["carbon_intensity.p"], color="#E74C3C", 
+                label="Grid Carbon Intensity", linewidth=2)
+        ax2.axhline(y=100, color='#27AE60', linestyle='--', alpha=0.5,
+                   label="Low Carbon Threshold")
+        
+        ax2.set_ylabel("Grid Carbon Intensity\n(gCO₂/kWh)", fontsize=12)
+        ax2.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12)
+        ax2.legend(fontsize=10, loc='upper right', framealpha=0.9)
+        ax2.grid(True, alpha=0.2)
+        
+        # Format axes
+        format_time_axis(ax1, location_tz)
+        format_time_axis(ax2, location_tz)
+        
+        # Adjust layout
+        plt.subplots_adjust(hspace=0.3)  # Increase space between subplots
+        
+        emissions_plot_path = os.path.join(save_dir, "carbon_emissions_plot.png")
+        plt.savefig(emissions_plot_path, dpi=300, bbox_inches='tight')
+        plt.close()
 
     ## **Final System Metrics**
     if log_metrics:
