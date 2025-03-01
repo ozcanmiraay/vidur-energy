@@ -3,15 +3,23 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
-def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", log_metrics=False):
+def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", location_tz=None, log_metrics=False):
     """Plots Vessim results, including power usage, battery SOC, and logs key metrics."""
 
+    # Load data (assuming UTC)
     df = pd.read_csv(output_file, parse_dates=["time"], index_col="time")
+    
+    # Make sure index is timezone aware
+    df.index = df.index.tz_localize('UTC')
+    
+    if location_tz:
+        # Convert index to local time
+        df.index = df.index.tz_convert(location_tz)
+        print(f"Data range in {location_tz.zone}: {df.index[0]} to {df.index[-1]}")
+    
     df["grid_power"] = df["e_delta"] / step_size  
 
     os.makedirs(save_dir, exist_ok=True)
-
-    # Define log_path at the beginning
     log_path = os.path.join(save_dir, "simulation_metrics.txt")
 
     ## **Plot: Power Usage & Solar Generation**
@@ -22,15 +30,15 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
     ax1.plot(df.index, df["grid_power"], color="blue", label="Grid Power (W)")
 
     ax1.set_ylabel("Power (W)")
-    ax1.set_xlabel("Time")
+    ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})")
     ax1.set_title("Power Flow Analysis Over Time")
 
     ax1.legend()
     ax1.grid()
 
-    # Time formatting for readability
-    ax1.xaxis.set_major_locator(mdates.HourLocator(interval=3))  
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))  
+    # Use pandas built-in time formatting with timezone
+    ax1.xaxis.set_major_locator(mdates.HourLocator(interval=3))
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz=location_tz))
     fig.autofmt_xdate()
 
     power_plot_path = os.path.join(save_dir, "power_plot.png")
@@ -45,7 +53,7 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
         ax2.axhline(y=df["storage.min_soc"].iloc[0] * 100, color='r', linestyle='--', label="Min SoC", linewidth=1.2)
 
         ax2.set_ylabel("State of Charge (%)")
-        ax2.set_xlabel("Time")
+        ax2.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})")
         ax2.set_title("Battery State of Charge Over Time")
 
         ax2.legend()

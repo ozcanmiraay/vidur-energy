@@ -51,20 +51,45 @@ def main():
     processed_file = os.path.join(vessim_output_dir, "vessim_ready_data.csv")
     vessim_ready_data = prepare_vessim_data(csv_file, args.agg_freq, args.analysis_type, args.interpolate, processed_file)
 
+    # Get simulation times in UTC
     sim_start_time = vessim_ready_data.index[0]
     sim_end_time = vessim_ready_data.index[-1]
 
-    utc_naive_time = sim_start_time.tz_localize('UTC').tz_convert(location_timezone).tz_localize(None)
-    utc_naive_end_time = sim_end_time.tz_localize('UTC').tz_convert(location_timezone).tz_localize(None)
+    # For debugging
+    print(f"Raw simulation time: {sim_start_time}")
+    print(f"Location timezone: {location_timezone}")
+    print(f"Location offset from UTC: {location_timezone.utcoffset(sim_start_time)}")
+
+    # Convert to UTC if not already
+    if sim_start_time.tzinfo is None:
+        sim_start_time = sim_start_time.tz_localize('UTC')
+        sim_end_time = sim_end_time.tz_localize('UTC')
+
+    print(f"Final simulation time (UTC): {sim_start_time}")
 
     sim_output_file = os.path.join(vessim_output_dir, "vessim_output.csv")
     run_vessim_simulation(
-        vessim_ready_data, utc_naive_time, utc_naive_end_time, args.step_size, args.solar_scale_factor,
-        args.battery_capacity, args.battery_initial_soc, args.battery_min_soc,
-        sim_output_file, args.analysis_type, args.location
+        vessim_ready_data, 
+        sim_start_time.tz_localize(None),  # Vessim needs naive UTC
+        sim_end_time.tz_localize(None),    # Vessim needs naive UTC
+        args.step_size, 
+        args.solar_scale_factor,
+        args.battery_capacity, 
+        args.battery_initial_soc, 
+        args.battery_min_soc,
+        sim_output_file, 
+        args.analysis_type, 
+        args.location
     )
 
-    plot_vessim_results(sim_output_file, args.step_size, save_dir=vessim_output_dir, log_metrics=args.log_metrics)
+    # Only pass timezone for display purposes
+    plot_vessim_results(
+        output_file=sim_output_file, 
+        step_size=args.step_size, 
+        save_dir=vessim_output_dir,
+        location_tz=location_timezone,
+        log_metrics=args.log_metrics
+    )
 
 if __name__ == "__main__":
     main()
