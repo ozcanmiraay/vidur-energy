@@ -13,7 +13,7 @@ def prepare_vessim_data(
     vidur_data = pd.read_csv(vidur_file_path)
     vidur_data["time_extended"] = pd.to_datetime(vidur_data["time_extended"])
     vidur_data.set_index("time_extended", inplace=True)
-
+    
     vessim_ready_data = vidur_data.rename(columns={
         "effective_power": "power_usage_watts",
         "energy": "energy_usage_joules",
