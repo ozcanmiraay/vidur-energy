@@ -1,16 +1,15 @@
 import pandas as pd
 
 def prepare_vessim_data(
-    vidur_file_path,
+    stats_file,
     agg_freq="1s",
     analysis_type="trend analysis",
-    interpolate=False,
     output_file="vessim_ready_data.csv"
 ):
     """
     Processes Vidur simulation output into Vessim-compatible format and saves it.
     """
-    vidur_data = pd.read_csv(vidur_file_path)
+    vidur_data = pd.read_csv(stats_file)
     vidur_data["time_extended"] = pd.to_datetime(vidur_data["time_extended"])
     vidur_data.set_index("time_extended", inplace=True)
     

@@ -34,7 +34,6 @@ def main():
     parser.add_argument("--battery-capacity", type=int, default=5000, help="Battery capacity in Wh")
     parser.add_argument("--battery-initial-soc", type=float, default=0.4, help="Initial battery state of charge (0-1)")
     parser.add_argument("--battery-min-soc", type=float, default=0.3, help="Minimum battery state of charge (0-1)")
-    parser.add_argument("--interpolate", type=bool, default=True, help="Enable interpolation")
     parser.add_argument("--log-metrics", action="store_true", help="Enable detailed energy logging")
     parser.add_argument("--carbon-analysis", action="store_true", 
                        help="Enable carbon emissions analysis")
@@ -53,7 +52,7 @@ def main():
         return
 
     processed_file = os.path.join(vessim_output_dir, "vessim_ready_data.csv")
-    vessim_ready_data = prepare_vessim_data(csv_file, args.agg_freq, args.analysis_type, args.interpolate, processed_file)
+    vessim_ready_data = prepare_vessim_data(csv_file, args.agg_freq, args.analysis_type, processed_file)
 
     # Get simulation times in UTC
     sim_start_time = vessim_ready_data.index[0]
