@@ -36,6 +36,10 @@ def main():
     parser.add_argument("--battery-min-soc", type=float, default=0.3, help="Minimum battery state of charge (0-1)")
     parser.add_argument("--interpolate", type=bool, default=True, help="Enable interpolation")
     parser.add_argument("--log-metrics", action="store_true", help="Enable detailed energy logging")
+    parser.add_argument("--carbon-analysis", action="store_true", 
+                       help="Enable carbon emissions analysis")
+    parser.add_argument("--low-carbon-threshold", type=float, default=100,
+                       help="Threshold for low carbon intensity in gCO2/kWh")
 
     args = parser.parse_args()
 
@@ -88,7 +92,7 @@ def main():
         step_size=args.step_size, 
         save_dir=vessim_output_dir,
         location_tz=location_timezone,
-        log_metrics=args.log_metrics
+        log_metrics=args.log_metrics or args.carbon_analysis  # Enable logging if either flag is set
     )
 
 if __name__ == "__main__":
