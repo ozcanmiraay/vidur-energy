@@ -158,6 +158,8 @@ This branch **integrates Vidur with Vessim**, enabling:
 🔋 **Battery storage behavior tracking**  
 🌍 **Carbon emissions monitoring**  
 
+P.S.: Please create a new virtual environment and install Vidur + Vessim requirements to work on this branch. Run your Vidur simulations first, and later run Vessim on your simulations' subdirectories. This step is crucial to handle the numpy version incompatibility between Vidur and Vessim. 
+
 ### **🌞 Running Vidur-Vessim Co-Simulation**  
 ```sh
 python -m vidur.vidur_vessim.cli \
