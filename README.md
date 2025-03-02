@@ -1,4 +1,4 @@
-## 📗 **Vidur-Energy: Extending Vidur for Power and Energy Tracking in LLM Inference**  
+# 📗 **Vidur-Energy: Extending Vidur for Power and Energy Tracking in LLM Inference**  
 
 Vidur-Energy is an **enhanced version** of [Vidur](https://github.com/microsoft/vidur), a high-fidelity **LLM inference system simulator**, with **additional energy tracking capabilities**. This extension introduces:  
 
