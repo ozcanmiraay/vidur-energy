@@ -54,6 +54,32 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
         df.index = df.index.tz_convert(location_tz)
         print(f"Data range in {location_tz.zone}: {df.index[0]} to {df.index[-1]}")
     
+    # Check if we have enough data points for meaningful plots
+    if len(df) <= 2:
+        print("⚠️ Warning: Not enough data points for meaningful plots. Try a shorter step size or longer simulation.")
+        
+        # Create a simple message instead of plots
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+            
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.text(0.5, 0.5, "Insufficient data for visualization\nTry a shorter step size or longer simulation", 
+                ha='center', va='center', fontsize=14, color='red')
+        ax.axis('off')
+        plt.savefig(os.path.join(save_dir, "insufficient_data.png"), bbox_inches='tight')
+        plt.close()
+        
+        # Still log metrics if requested
+        if log_metrics:
+            log_path = os.path.join(save_dir, "simulation_metrics.txt")
+            with open(log_path, "w") as log_file:
+                log_file.write("📊 VESSIM SIMULATION METRICS\n")
+                log_file.write("="*50 + "\n\n")
+                log_file.write("⚠️ Warning: Not enough data points for meaningful analysis.\n")
+                log_file.write("Try a shorter step size or longer simulation duration.\n")
+        
+        return
+    
     df["grid_power"] = df["e_delta"] / step_size  
 
     os.makedirs(save_dir, exist_ok=True)
@@ -68,7 +94,14 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
 
     def format_time_axis(ax, location_tz):
         """Helper function to consistently format time axes"""
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=3))
+        # Check if we have a very short time range
+        time_range = ax.get_xlim()
+        if time_range[1] - time_range[0] < 1:  # Less than 1 day range
+            # Use a more appropriate locator for short time ranges
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))
+        else:
+            ax.xaxis.set_major_locator(mdates.HourLocator(interval=3))
+        
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M", tz=location_tz))
         ax.tick_params(axis='both', labelsize=10)
         for label in ax.get_xticklabels():
@@ -130,40 +163,18 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
         discharging_time = discharging_mask.sum() * step_size / (len(df) * step_size) * 100
         idle_time = idle_mask.sum() * step_size / (len(df) * step_size) * 100
 
-        # Only create pie chart if there's more than one state
-        non_zero_states = sum(x > 1 for x in [charging_time, discharging_time, idle_time])
-        if non_zero_states > 1:
-            # Create regular pie chart for multiple states
-            fig, ax3 = plt.subplots(figsize=(10, 8))
-            colors = ['#3498db', '#e67e22', '#2ecc71']
-            labels = ['Charging', 'Discharging', 'Idle']
-            sizes = [charging_time, discharging_time, idle_time]
-            wedges, texts, autotexts = ax3.pie(sizes, 
-                                              labels=labels,
-                                              colors=colors,
-                                              autopct='%1.1f%%',
-                                              startangle=90)
-            ax3.axis('equal')
-            plt.title("Battery Usage Distribution", pad=20, y=1.08)
-            plt.setp(autotexts, size=10, weight="bold")
-            plt.setp(texts, size=12)
-        else:
-            # Create simplified visualization for single state
-            fig, ax3 = plt.subplots(figsize=(8, 4))
-            
-            # Determine the active state (using a lower threshold)
-            if charging_time > 95:
-                state, color = "Charging", '#3498db'
-            elif discharging_time > 95:
-                state, color = "Discharging", '#e67e22'
-            elif idle_time > 95:
-                state, color = "Idle", '#2ecc71'
-            else:
-                # If no single state dominates, fall back to pie chart
+        # Check for valid data before creating pie chart
+        sizes = [charging_time, discharging_time, idle_time]
+        
+        # Ensure we have valid data (no NaN values)
+        if not any(np.isnan(sizes)) and sum(sizes) > 0:
+            # Only create pie chart if there's more than one state
+            non_zero_states = sum(x > 1 for x in sizes)
+            if non_zero_states > 1:
+                # Create regular pie chart for multiple states
                 fig, ax3 = plt.subplots(figsize=(10, 8))
                 colors = ['#3498db', '#e67e22', '#2ecc71']
                 labels = ['Charging', 'Discharging', 'Idle']
-                sizes = [charging_time, discharging_time, idle_time]
                 wedges, texts, autotexts = ax3.pie(sizes, 
                                                   labels=labels,
                                                   colors=colors,
@@ -173,19 +184,55 @@ def plot_vessim_results(output_file, step_size=60, save_dir="vessim_analysis", l
                 plt.title("Battery Usage Distribution", pad=20, y=1.08)
                 plt.setp(autotexts, size=10, weight="bold")
                 plt.setp(texts, size=12)
-                return
+            else:
+                # Create simplified visualization for single state
+                fig, ax3 = plt.subplots(figsize=(8, 4))
+                
+                # Determine the active state (using a lower threshold)
+                if charging_time > 95:
+                    state, color = "Charging", '#3498db'
+                elif discharging_time > 95:
+                    state, color = "Discharging", '#e67e22'
+                elif idle_time > 95:
+                    state, color = "Idle", '#2ecc71'
+                else:
+                    # If no single state dominates, fall back to bar chart
+                    fig, ax3 = plt.subplots(figsize=(10, 6))
+                    ax3.bar(['Charging', 'Discharging', 'Idle'], 
+                           sizes, 
+                           color=['#3498db', '#e67e22', '#2ecc71'])
+                    ax3.set_ylabel('Percentage (%)')
+                    ax3.set_title("Battery Usage Distribution")
+                    for i, v in enumerate(sizes):
+                        ax3.text(i, v + 1, f"{v:.1f}%", ha='center')
+                    plt.tight_layout()
+                    battery_usage_path = os.path.join(save_dir, "battery_usage_distribution.png")
+                    plt.savefig(battery_usage_path, bbox_inches='tight')
+                    plt.close()
+                    return
 
-            # Create the single-state visualization
-            ax3.text(0.5, 0.5, f"{state}\n{max(charging_time, discharging_time, idle_time):.1f}%", 
+                # Create the single-state visualization
+                ax3.text(0.5, 0.5, f"{state}\n{max(charging_time, discharging_time, idle_time):.1f}%", 
+                        ha='center', va='center',
+                        fontsize=20, fontweight='bold',
+                        color=color)
+                ax3.axis('off')
+                plt.title("Battery Usage Distribution", pad=20)
+
+            battery_usage_path = os.path.join(save_dir, "battery_usage_distribution.png")
+            plt.savefig(battery_usage_path, bbox_inches='tight')
+            plt.close()
+        else:
+            # Create a message for invalid data
+            fig, ax3 = plt.subplots(figsize=(8, 4))
+            ax3.text(0.5, 0.5, "Insufficient battery data\nfor usage distribution", 
                     ha='center', va='center',
-                    fontsize=20, fontweight='bold',
-                    color=color)
+                    fontsize=16, color='gray')
             ax3.axis('off')
             plt.title("Battery Usage Distribution", pad=20)
-
-        battery_usage_path = os.path.join(save_dir, "battery_usage_distribution.png")
-        plt.savefig(battery_usage_path, bbox_inches='tight')
-        plt.close()
+            battery_usage_path = os.path.join(save_dir, "battery_usage_distribution.png")
+            plt.savefig(battery_usage_path, bbox_inches='tight')
+            plt.close()
 
         # Add these metrics to the log file if logging is enabled
         if log_metrics:
