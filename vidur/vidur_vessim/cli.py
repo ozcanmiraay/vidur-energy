@@ -46,53 +46,83 @@ def main():
     vessim_output_dir = os.path.join(args.vidur_sim_dir, "vessim_analysis")
     os.makedirs(vessim_output_dir, exist_ok=True)
 
+    # 1) Extract the per-request power usage from Vidur
     csv_file = extract_vidur_stats(args.vidur_sim_dir)
     if csv_file is None:
         print("❌ Could not extract or locate mfu_energy_power_data.csv. Exiting.")
         return
 
+    # 2) Prepare data for Vessim
     processed_file = os.path.join(vessim_output_dir, "vessim_ready_data.csv")
-    vessim_ready_data = prepare_vessim_data(csv_file, args.agg_freq, args.analysis_type, processed_file)
+    vessim_ready_data = prepare_vessim_data(
+        csv_file,
+        agg_freq=args.agg_freq,
+        analysis_type=args.analysis_type,
+        output_file=processed_file
+    )
 
-    # Get simulation times in UTC
+    # 3) Use the first and last timestamps of the aggregated data as our sim_start & sim_end
     sim_start_time = vessim_ready_data.index[0]
     sim_end_time = vessim_ready_data.index[-1]
 
-    # For debugging
-    print(f"Raw simulation time: {sim_start_time}")
-    print(f"Location timezone: {location_timezone}")
-    print(f"Location offset from UTC: {location_timezone.utcoffset(sim_start_time)}")
+    print(f"Raw simulation start_time in data: {sim_start_time}")
+    print(f"Raw simulation end_time in data: {sim_end_time}")
 
-    # Convert to UTC if not already
+    print(f"Interpreting these times as local time in {args.location} => {location_timezone.zone}")
+
+    # If the timestamps are naive, treat them as local times
     if sim_start_time.tzinfo is None:
-        sim_start_time = sim_start_time.tz_localize('UTC')
-        sim_end_time = sim_end_time.tz_localize('UTC')
+        # Step A: localize them to the location
+        local_start_aware = location_timezone.localize(sim_start_time)
+        local_end_aware   = location_timezone.localize(sim_end_time)
 
-    print(f"Final simulation time (UTC): {sim_start_time}")
+        # Step B: Convert to UTC
+        start_utc = local_start_aware.astimezone(pytz.utc)
+        end_utc   = local_end_aware.astimezone(pytz.utc)
 
+        # Step C: Remove the timezone entirely
+        sim_start_time_utc_naive = start_utc.replace(tzinfo=None)
+        sim_end_time_utc_naive   = end_utc.replace(tzinfo=None)
+
+        print("Converted sim_start_time => UTC naive:", sim_start_time_utc_naive)
+        print("Converted sim_end_time   => UTC naive:", sim_end_time_utc_naive)
+
+        # Overwrite the times in code
+        sim_start_time = sim_start_time_utc_naive
+        sim_end_time   = sim_end_time_utc_naive
+    else:
+        # If they already have tzinfo, ensure we do the same steps
+        # (but this scenario is less common in your setup)
+        sim_start_time = sim_start_time.astimezone(pytz.utc).replace(tzinfo=None)
+        sim_end_time   = sim_end_time.astimezone(pytz.utc).replace(tzinfo=None)
+
+    print(f"Final simulation time used by Vessim (UTC naive): {sim_start_time} -> {sim_end_time}")
+
+    # 4) Now run the Vessim simulation with these naive-UTC times
     sim_output_file = os.path.join(vessim_output_dir, "vessim_output.csv")
     run_vessim_simulation(
-        vessim_ready_data, 
-        sim_start_time.tz_localize(None),  # Vessim needs naive UTC
-        sim_end_time.tz_localize(None),    # Vessim needs naive UTC
-        args.step_size, 
-        args.solar_scale_factor,
-        args.battery_capacity, 
-        args.battery_initial_soc, 
-        args.battery_min_soc,
-        sim_output_file, 
-        args.analysis_type, 
-        args.location
+        data=vessim_ready_data,
+        sim_start_time=sim_start_time,
+        sim_end_time=sim_end_time,
+        step_size=args.step_size,
+        solar_scale=args.solar_scale_factor,
+        battery_capacity=args.battery_capacity,
+        battery_initial_soc=args.battery_initial_soc,
+        battery_min_soc=args.battery_min_soc,
+        output_file=sim_output_file,
+        analysis_type=args.analysis_type,
+        location=args.location
     )
 
-    # Only pass timezone for display purposes
+    # 5) Post-process and visualize results
     plot_vessim_results(
         output_file=sim_output_file, 
-        step_size=args.step_size, 
+        step_size=args.step_size,
         save_dir=vessim_output_dir,
-        location_tz=location_timezone,
-        log_metrics=args.log_metrics or args.carbon_analysis  # Enable logging if either flag is set
+        location_tz=location_timezone,  # for converting back to local time in plots
+        log_metrics=args.log_metrics or args.carbon_analysis
     )
+
 
 if __name__ == "__main__":
     main()
