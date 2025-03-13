@@ -12,13 +12,15 @@ base_output_dir = "/Users/mirayozcan/Desktop/vidur_copy/vidur/simulator_output/e
 os.makedirs(base_output_dir, exist_ok=True)
 
 # Fixed request sizes (Tokens per request)
-fixed_request_sizes = [128, 256, 512, 1024, 2048, 4096]  
+fixed_request_sizes = [128, 256, 512, 1024, 2048, 4096]
 
 # Define number of requests to test
 num_requests = 1024  # Keeping constant workload
 
 # Define Prefill:Decode ratios to test (logarithmic scaling from 50:1 to 1:50)
-prefill_decode_ratios = np.round(np.logspace(np.log10(50), np.log10(0.02), num=10), 4).tolist()  
+prefill_decode_ratios = np.round(
+    np.logspace(np.log10(50), np.log10(0.02), num=10), 4
+).tolist()
 
 # Selected Model for this experiment (Controlled Condition)
 model_name = "meta-llama/Meta-Llama-3-8B"
@@ -53,14 +55,18 @@ base_command = (
 # Experiment results collection
 experiment_results = []
 
+
 def find_latest_timestamped_dir(exp_dir):
     """Finds the latest timestamped directory within the experiment folder."""
-    subdirs = [d for d in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, d))]
+    subdirs = [
+        d for d in os.listdir(exp_dir) if os.path.isdir(os.path.join(exp_dir, d))
+    ]
     if not subdirs:
         print(f"No timestamped directory found in {exp_dir}. Skipping...")
         return None
     latest_dir = sorted(subdirs)[-1]
     return os.path.join(exp_dir, latest_dir)
+
 
 # Run experiments
 for fixed_request_size in fixed_request_sizes:
@@ -71,12 +77,19 @@ for fixed_request_size in fixed_request_sizes:
 
         # Sanity check to avoid negative decode_tokens
         if decode_tokens < 0 or prefill_tokens < 0:
-            print(f"⚠️ Skipping invalid ratio {ratio} for request size {fixed_request_size} (prefill={prefill_tokens}, decode={decode_tokens})")
+            print(
+                f"⚠️ Skipping invalid ratio {ratio} for request size {fixed_request_size} (prefill={prefill_tokens}, decode={decode_tokens})"
+            )
             continue
 
-        print(f"\n Running experiment: Model={model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}...")
+        print(
+            f"\n Running experiment: Model={model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}..."
+        )
 
-        sim_output_dir = os.path.join(base_output_dir, f"{model_name.replace('/', '_')}_len_{fixed_request_size}_PD_{ratio}")
+        sim_output_dir = os.path.join(
+            base_output_dir,
+            f"{model_name.replace('/', '_')}_len_{fixed_request_size}_PD_{ratio}",
+        )
         os.makedirs(sim_output_dir, exist_ok=True)
 
         command = base_command.format(
@@ -84,57 +97,76 @@ for fixed_request_size in fixed_request_sizes:
             TP=model_config["TP"],
             PP=model_config["PP"],
             num_requests=num_requests,
-            fixed_request_size=fixed_request_size,  
+            fixed_request_size=fixed_request_size,
             prefill_tokens=prefill_tokens,
             decode_tokens=decode_tokens,
-            output_dir=sim_output_dir
+            output_dir=sim_output_dir,
         )
 
         try:
             subprocess.run(command, shell=True, check=True)
-            print(f"Simulation complete for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}.")
+            print(
+                f"Simulation complete for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}."
+            )
 
             # Find latest timestamped directory
             actual_sim_dir = find_latest_timestamped_dir(sim_output_dir)
             if not actual_sim_dir:
-                print(f"⚠️ No valid output found for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}. Skipping...")
+                print(
+                    f"⚠️ No valid output found for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}. Skipping..."
+                )
                 continue
 
             # Run energy extraction script using the correct path
             extraction_cmd = [
-                "python", "-m", "vidur.config_optimizer.analyzer.stats_extractor_energy",
-                "--sim-results-dir", actual_sim_dir
+                "python",
+                "-m",
+                "vidur.config_optimizer.analyzer.stats_extractor_energy",
+                "--sim-results-dir",
+                actual_sim_dir,
             ]
             subprocess.run(extraction_cmd, check=True)
-            print(f"Energy analysis complete for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}.")
+            print(
+                f"Energy analysis complete for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}."
+            )
 
             # Read and log analysis results
-            analysis_file = os.path.join(actual_sim_dir, "analysis", "simulation_stats_with_energy.json")
+            analysis_file = os.path.join(
+                actual_sim_dir, "analysis", "simulation_stats_with_energy.json"
+            )
             if os.path.exists(analysis_file):
-                with open(analysis_file, 'r') as f:
+                with open(analysis_file, "r") as f:
                     stats = json.load(f)
 
-                experiment_results.append({
-                    "model": model_name,
-                    "num_parameters": model_params[model_name],
-                    "num_requests": num_requests,
-                    "request_length": fixed_request_size,
-                    "prefill_decode_ratio": ratio,
-                    "prefill_tokens": prefill_tokens,
-                    "decode_tokens": decode_tokens,
-                    "mfu_mean": stats.get("mfu_mean", None),
-                    "average_power_watts": stats.get("average_power_watts", None),
-                    "peak_power_watts": stats.get("peak_power_watts", None),
-                    "total_energy_kwh": stats.get("total_energy_kwh", None),
-                    "tokens_per_second": stats.get("tokens_per_second", None),
-                    "execution_time_s": stats.get("sim_time", None)
-                })
-                print(f"Data saved for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}.")
+                experiment_results.append(
+                    {
+                        "model": model_name,
+                        "num_parameters": model_params[model_name],
+                        "num_requests": num_requests,
+                        "request_length": fixed_request_size,
+                        "prefill_decode_ratio": ratio,
+                        "prefill_tokens": prefill_tokens,
+                        "decode_tokens": decode_tokens,
+                        "mfu_mean": stats.get("mfu_mean", None),
+                        "average_power_watts": stats.get("average_power_watts", None),
+                        "peak_power_watts": stats.get("peak_power_watts", None),
+                        "total_energy_kwh": stats.get("total_energy_kwh", None),
+                        "tokens_per_second": stats.get("tokens_per_second", None),
+                        "execution_time_s": stats.get("sim_time", None),
+                    }
+                )
+                print(
+                    f"Data saved for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}."
+                )
 
         except subprocess.CalledProcessError as e:
-            print(f"Simulation failed for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}: {e}")
+            print(
+                f"Simulation failed for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}: {e}"
+            )
         except Exception as e:
-            print(f"Error processing results for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}: {e}")
+            print(
+                f"Error processing results for {model_name}, Request Length={fixed_request_size}, P:D Ratio={ratio}: {e}"
+            )
 
 # Save experiment results
 if experiment_results:
@@ -149,4 +181,6 @@ if experiment_results:
     results_df = pd.DataFrame(experiment_results)
     results_df.to_csv(results_csv_file, index=False)
 
-    print(f"\nExperiment complete! Results saved to:\n{results_json_file}\n{results_csv_file}")
+    print(
+        f"\nExperiment complete! Results saved to:\n{results_json_file}\n{results_csv_file}"
+    )
