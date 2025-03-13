@@ -33,7 +33,7 @@ def main():
     )
     parser.add_argument(
         "--location",
-        required=True,
+        default="San Francisco",
         choices=LOCATION_TIMEZONE_MAP.keys(),
         help="Simulation location",
     )
