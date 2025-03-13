@@ -9,52 +9,61 @@ from multiprocessing import Pool
 from vidur.logger import init_logger
 from vidur.config_optimizer.analyzer.constants import CPU_MACHINE_COST, GPU_COSTS
 from datetime import datetime, timedelta
-from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.region_configs import REGIONAL_ENERGY_CONFIGS
-from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.gpu_configs import GPU_POWER_CONFIGS
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.region_configs import (
+    REGIONAL_ENERGY_CONFIGS,
+)
+from vidur.config_optimizer.analyzer.stats_extractor_energy_reporting.config.gpu_configs import (
+    GPU_POWER_CONFIGS,
+)
 
 logger = init_logger(__name__)
 
-def interpolate_power_v2(mfu: float, gpu_type: str, memory_util: float = None, batch_size: int = None) -> float:
+
+def interpolate_power_v2(
+    mfu: float, gpu_type: str, memory_util: float = None, batch_size: int = None
+) -> float:
     """Linear interpolation between idle and max utilization power states, with memory and batch effects."""
     gpu_config = GPU_POWER_CONFIGS[gpu_type]
-    
+
     # 1. Base compute power (same as original)
     compute_power = gpu_config.idle + (gpu_config.max_util - gpu_config.idle) * mfu
-    
+
     # 2. Memory power component (if memory utilization is provided)
     if memory_util is not None:
         MEMORY_POWER_FACTOR = 0.25
         memory_power = compute_power * MEMORY_POWER_FACTOR * memory_util
         compute_power += memory_power
-    
+
     # 3. Batch efficiency (if batch size is provided)
     if batch_size is not None:
-        batch_factor = 1.0 - (0.1 * min(batch_size/512, 1.0))
+        batch_factor = 1.0 - (0.1 * min(batch_size / 512, 1.0))
         compute_power *= batch_factor
-    
+
     return compute_power
+
 
 def get_gpu_power(sim_results_dir):
     """Get GPU config based on type specified in simulation config."""
     config_file = f"{sim_results_dir}/config.json"
     try:
-        with open(config_file, 'r') as f:
+        with open(config_file, "r") as f:
             config_data = json.load(f)
-        gpu_type = config_data['cluster_config']['replica_config']['device'].lower()
+        gpu_type = config_data["cluster_config"]["replica_config"]["device"].lower()
         return GPU_POWER_CONFIGS[gpu_type]
     except Exception as e:
         logger.error(f"Error reading config file for GPU power: {e}")
         return GPU_POWER_CONFIGS["a100"]  # Default to A100 if there's an error
 
-def calculate_energy_consumption(gpu_hrs, power_values, mfu, gpu_type, memory_util=None, batch_size=None):
+
+def calculate_energy_consumption(
+    gpu_hrs, power_values, mfu, gpu_type, memory_util=None, batch_size=None
+):
     """Calculate energy consumption with enhanced power model."""
     effective_power = interpolate_power_v2(
-        mfu=mfu,
-        gpu_type=gpu_type,
-        memory_util=memory_util,
-        batch_size=batch_size
+        mfu=mfu, gpu_type=gpu_type, memory_util=memory_util, batch_size=batch_size
     )
     return effective_power * gpu_hrs / 1000
+
 
 def calculate_total_energy_with_pue(energy_gpu, pue):
     """
@@ -62,7 +71,10 @@ def calculate_total_energy_with_pue(energy_gpu, pue):
     """
     return energy_gpu * pue  # PUE adjusts for energy overhead in data centers
 
-def calculate_carbon_emissions(total_energy_kwh, carbon_intensity, manufacturing_emissions, gpu_hours):
+
+def calculate_carbon_emissions(
+    total_energy_kwh, carbon_intensity, manufacturing_emissions, gpu_hours
+):
     """
     Calculate the carbon emissions based on total energy, carbon intensity, and manufacturing emissions.
 
@@ -82,6 +94,7 @@ def calculate_carbon_emissions(total_energy_kwh, carbon_intensity, manufacturing
     # Total emissions
     return scope_2_emissions + scope_3_emissions
 
+
 def process_mfu_energy(run_dir: str, power_values: dict):
     """
     Extract MFU values and calculate energy consumption for each stage across all replicas.
@@ -89,16 +102,16 @@ def process_mfu_energy(run_dir: str, power_values: dict):
     """
     # Get GPU type from config
     config_file = f"{run_dir}/config.json"
-    with open(config_file, 'r') as f:
+    with open(config_file, "r") as f:
         config = json.load(f)
     gpu_type = config["cluster_config"]["replica_config"]["device"].lower()
 
     # Get memory usage data
     memory_file = f"{run_dir}/plots/replica_1_memory_usage.json"
-    with open(memory_file, 'r') as f:
+    with open(memory_file, "r") as f:
         memory_data = json.load(f)
-    memory_df = pd.DataFrame(memory_data['replica_1_memory_usage_distribution'])
-    
+    memory_df = pd.DataFrame(memory_data["replica_1_memory_usage_distribution"])
+
     # Rest of setup (num_gpus calculation etc.) stays the same
     mfu_files = glob.glob(f"{run_dir}/plots/replica_*_stage_*_mfu.json")
     if not mfu_files:
@@ -109,9 +122,9 @@ def process_mfu_energy(run_dir: str, power_values: dict):
         with open(config_file, "r") as f:
             config_data = json.load(f)
         num_gpus = (
-            config_data["cluster_config"]["num_replicas"] *
-            config_data["cluster_config"]["replica_config"]["tensor_parallel_size"] *
-            config_data["cluster_config"]["replica_config"]["num_pipeline_stages"]
+            config_data["cluster_config"]["num_replicas"]
+            * config_data["cluster_config"]["replica_config"]["tensor_parallel_size"]
+            * config_data["cluster_config"]["replica_config"]["num_pipeline_stages"]
         )
     except KeyError:
         logger.warning("Number of GPUs could not be determined. Defaulting to 1 GPU.")
@@ -146,58 +159,63 @@ def process_mfu_energy(run_dir: str, power_values: dict):
             time_seconds = df.iloc[i]["time"]
             current_datetime = start_time + timedelta(seconds=time_seconds)
             formatted_time = current_datetime.strftime("%Y-%m-%dT%H:%M:%S")
-            
+
             time_previous = df.iloc[i - 1]["time"]
             mfu = df.iloc[i]["mfu"] / 100
             batch_size = df.iloc[i].get("batch_size", 1)
             execution_time = time_seconds - time_previous
 
             if execution_time <= 0:
-                logger.warning(f"Execution time is non-positive: {execution_time} at time {formatted_time}")
+                logger.warning(
+                    f"Execution time is non-positive: {execution_time} at time {formatted_time}"
+                )
                 continue
 
             # Find closest memory usage timestamp and convert percentage to ratio
             memory_usage = memory_df.iloc[
-                (memory_df['time'] - time_seconds).abs().argsort()[0]
-            ]['memory_usage']
+                (memory_df["time"] - time_seconds).abs().argsort()[0]
+            ]["memory_usage"]
             memory_util = memory_usage / 100  # Convert percentage to ratio (0-1)
 
             gpu_hrs = (execution_time / 3600) * num_gpus
-            
+
             # Calculate power and energy with all factors
             effective_power = interpolate_power_v2(
                 mfu=mfu,
                 gpu_type=gpu_type,
                 memory_util=memory_util,
-                batch_size=batch_size
+                batch_size=batch_size,
             )
-            
+
             energy_consumption = calculate_energy_consumption(
                 gpu_hrs=gpu_hrs,
                 power_values=power_values,
                 mfu=mfu,
                 gpu_type=gpu_type,
                 memory_util=memory_util,
-                batch_size=batch_size
+                batch_size=batch_size,
             )
 
-            mfu_energy_power_data.append({
-                "time": time_seconds,
-                "time_extended": formatted_time,
-                "replica": replica_id,
-                "stage": stage_id,
-                "mfu": mfu,
-                "memory_util": memory_util,
-                "batch_size": batch_size,
-                "energy": energy_consumption,
-                "gpu_hrs": gpu_hrs,
-                "effective_power": effective_power
-            })
+            mfu_energy_power_data.append(
+                {
+                    "time": time_seconds,
+                    "time_extended": formatted_time,
+                    "replica": replica_id,
+                    "stage": stage_id,
+                    "mfu": mfu,
+                    "memory_util": memory_util,
+                    "batch_size": batch_size,
+                    "energy": energy_consumption,
+                    "gpu_hrs": gpu_hrs,
+                    "effective_power": effective_power,
+                }
+            )
 
     # Save results with additional columns
     output_file = os.path.join(run_dir, "analysis/mfu_energy_power_data.csv")
     pd.DataFrame(mfu_energy_power_data).to_csv(output_file, index=False)
     logger.info(f"MFU and energy data saved to {output_file}")
+
 
 def extract_stat_from_request_metrics(
     request_metrics_df: pd.DataFrame,
@@ -287,7 +305,9 @@ def process_run(run_dir: str):
         if os.path.exists(request_metrics_file):
             request_metrics_df = pd.read_csv(request_metrics_file)
         else:
-            raise FileNotFoundError(f"Request metrics file {request_metrics_file} not found.")
+            raise FileNotFoundError(
+                f"Request metrics file {request_metrics_file} not found."
+            )
 
         # Load tbt_file (optional, may not exist)
         tbt_df = pd.read_csv(tbt_file) if os.path.exists(tbt_file) else None
@@ -296,13 +316,23 @@ def process_run(run_dir: str):
         ttft_df = pd.read_csv(ttft_file) if os.path.exists(ttft_file) else None
 
         # Load batch_size_file (optional, may not exist)
-        batch_size_df = pd.read_csv(batch_size_file) if os.path.exists(batch_size_file) else None
+        batch_size_df = (
+            pd.read_csv(batch_size_file) if os.path.exists(batch_size_file) else None
+        )
 
         # Load batch_num_tokens_file (optional, may not exist)
-        batch_num_tokens_df = pd.read_csv(batch_num_tokens_file) if os.path.exists(batch_num_tokens_file) else None
+        batch_num_tokens_df = (
+            pd.read_csv(batch_num_tokens_file)
+            if os.path.exists(batch_num_tokens_file)
+            else None
+        )
 
         # Load request_completion_time_series_file (optional, may not exist)
-        request_completion_time_series_df = pd.read_csv(request_completion_time_series_file) if os.path.exists(request_completion_time_series_file) else None
+        request_completion_time_series_df = (
+            pd.read_csv(request_completion_time_series_file)
+            if os.path.exists(request_completion_time_series_file)
+            else None
+        )
 
     except FileNotFoundError as e:
         logger.error(f"FileNotFoundError: {e}")
@@ -315,7 +345,10 @@ def process_run(run_dir: str):
     # Check if replica_scheduler_config exists and access the scheduler name
     if "replica_scheduler_config" in config:
         scheduler_name = config["replica_scheduler_config"].get("name", None)
-        if scheduler_name == "sarathi" and config["replica_scheduler_config"].get("chunk_size", None) == 4096:
+        if (
+            scheduler_name == "sarathi"
+            and config["replica_scheduler_config"].get("chunk_size", None) == 4096
+        ):
             config["replica_scheduler_config"]["name"] = "orca+"
     else:
         logger.warning("'replica_scheduler_config' not found in config")
@@ -346,7 +379,7 @@ def process_run(run_dir: str):
     memory_usage_stats = extract_utilization_stats(run_dir, "memory_usage")
     mfu_stats = extract_utilization_stats(run_dir, "mfu")
     busy_time_percent_stats = extract_utilization_stats(run_dir, "busy_time_percent")
-    runtime = request_completion_time_series_df["Time (sec)"].max() 
+    runtime = request_completion_time_series_df["Time (sec)"].max()
 
     config.update(
         {
@@ -364,18 +397,22 @@ def process_run(run_dir: str):
             **batch_num_tokens_cdf,
             "runtime": runtime,
         }
-    ) 
+    )
     return config
+
 
 def get_sim_time_from_request_completion(run_dir: str):
     request_completion_file = f"{run_dir}/plots/request_completion_time_series.csv"
-    
+
     if os.path.exists(request_completion_file):
         request_completion_df = pd.read_csv(request_completion_file)
-        return request_completion_df["Time (sec)"].max()  # Get the last timestamp in the file
+        return request_completion_df[
+            "Time (sec)"
+        ].max()  # Get the last timestamp in the file
     else:
         logger.warning(f"request_completion_time_series.csv not found in {run_dir}")
-        return np.nan 
+        return np.nan
+
 
 def process_trace(sim_results_dir: str, region: str = "california"):
     analysis_dir = f"{sim_results_dir}/analysis"
@@ -401,35 +438,52 @@ def process_trace(sim_results_dir: str, region: str = "california"):
 
     df["num_gpus"] = (
         df["cluster_config"].apply(lambda x: x["num_replicas"])
-    * df["cluster_config"].apply(lambda x: x["replica_config"]["tensor_parallel_size"])
-    * df["cluster_config"].apply(lambda x: x["replica_config"]["num_pipeline_stages"])
+        * df["cluster_config"].apply(
+            lambda x: x["replica_config"]["tensor_parallel_size"]
+        )
+        * df["cluster_config"].apply(
+            lambda x: x["replica_config"]["num_pipeline_stages"]
+        )
     )
     df["cost"] = (
-        df["runtime"] * df["num_gpus"] * df["cluster_config"].apply(lambda x: x["replica_config"]["device"]).map(GPU_COSTS) / 3600
+        df["runtime"]
+        * df["num_gpus"]
+        * df["cluster_config"]
+        .apply(lambda x: x["replica_config"]["device"])
+        .map(GPU_COSTS)
+        / 3600
     )
 
     # Get GPU type from config once
     config_file = f"{sim_results_dir}/config.json"
-    with open(config_file, 'r') as f:
+    with open(config_file, "r") as f:
         config = json.load(f)
     gpu_type = config["cluster_config"]["replica_config"]["device"].lower()
-    
+
     mfu_stats = extract_utilization_stats(sim_results_dir, "mfu")
     memory_stats = extract_utilization_stats(sim_results_dir, "memory_usage")
-    
+
     # Load batch size file
     batch_size_file = f"{sim_results_dir}/plots/batch_size.csv"
-    batch_size_df = pd.read_csv(batch_size_file) if os.path.exists(batch_size_file) else None
-    batch_size_stats = extract_stats_from_cdf_df(batch_size_df, "batch_size") if batch_size_df is not None else {"batch_size_mean": 1}
-    
+    batch_size_df = (
+        pd.read_csv(batch_size_file) if os.path.exists(batch_size_file) else None
+    )
+    batch_size_stats = (
+        extract_stats_from_cdf_df(batch_size_df, "batch_size")
+        if batch_size_df is not None
+        else {"batch_size_mean": 1}
+    )
+
     df["mfu_mean"] = mfu_stats["mfu_mean"]
-    df["memory_util"] = memory_stats["memory_usage_mean"] / 100  # Convert percentage to ratio (0-1)
+    df["memory_util"] = (
+        memory_stats["memory_usage_mean"] / 100
+    )  # Convert percentage to ratio (0-1)
     df["batch_size"] = batch_size_stats.get("batch_size_mean", 1)
     df["gpu_hrs"] = df["runtime"] * df["num_gpus"] / 3600
-    
+
     # Get GPU type and power values
     power_values = get_gpu_power(sim_results_dir)
-    
+
     # Generate mfu_energy_power_data.csv first!
     process_mfu_energy(sim_results_dir, power_values)
     manufacturing_emissions = power_values.manufacturing_emissions
@@ -437,24 +491,28 @@ def process_trace(sim_results_dir: str, region: str = "california"):
     # Then do the rest of the calculations
     df["energy_gpu_kwh"] = df.apply(
         lambda row: calculate_energy_consumption(
-            row["gpu_hrs"], 
-            power_values, 
-            row["mfu_mean"], 
+            row["gpu_hrs"],
+            power_values,
+            row["mfu_mean"],
             gpu_type,
             row["memory_util"],
-            row["batch_size"]
-        ), axis=1
+            row["batch_size"],
+        ),
+        axis=1,
     )
 
     df["total_energy_kwh"] = df["energy_gpu_kwh"] * REGIONAL_ENERGY_CONFIGS[region].pue
 
     df["carbon_emissions_gco2eq"] = df.apply(
         lambda row: calculate_carbon_emissions(
-            row["total_energy_kwh"], REGIONAL_ENERGY_CONFIGS[region].carbon_intensity, manufacturing_emissions, row["gpu_hrs"]
+            row["total_energy_kwh"],
+            REGIONAL_ENERGY_CONFIGS[region].carbon_intensity,
+            manufacturing_emissions,
+            row["gpu_hrs"],
         ),
-        axis=1
+        axis=1,
     )
-    
+
     df.to_csv(f"{analysis_dir}/stats_with_energy.csv", index=False)
 
     gpu_cost = df["cost"].sum()
@@ -482,17 +540,25 @@ def process_trace(sim_results_dir: str, region: str = "california"):
     }
 
     json.dump(
-        simulation_stats, open(f"{analysis_dir}/simulation_stats_with_energy.json", "w"), indent=4
+        simulation_stats,
+        open(f"{analysis_dir}/simulation_stats_with_energy.json", "w"),
+        indent=4,
     )
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sim-results-dir", type=str, required=True)
-    parser.add_argument("--region", type=str, default="california", 
-                       choices=list(REGIONAL_ENERGY_CONFIGS.keys()),
-                       help="Region for energy calculations (default: california)")
+    parser.add_argument(
+        "--region",
+        type=str,
+        default="california",
+        choices=list(REGIONAL_ENERGY_CONFIGS.keys()),
+        help="Region for energy calculations (default: california)",
+    )
     args = parser.parse_args()
     process_trace(args.sim_results_dir, region=args.region)
 
+
 if __name__ == "__main__":
-    main() 
+    main()

@@ -12,7 +12,7 @@ class SeriesAverageMeter:
         y_name: str,
         use_weighted_mean: bool = True,
         save_table_to_wandb: bool = True,
-        is_mfu: bool = False  # New parameter to differentiate MFU from other metrics
+        is_mfu: bool = False,  # New parameter to differentiate MFU from other metrics
     ) -> None:
         self._distribution = []
         self._x_name = x_name
@@ -56,17 +56,11 @@ class SeriesAverageMeter:
 
         # Create data point, including metadata only for MFU meters
         if self._is_mfu and metadata:
-            data_point = {
-                "time": data_x,
-                self._y_name: data_y
-            }
+            data_point = {"time": data_x, self._y_name: data_y}
             data_point.update(metadata)
         else:
-            data_point = {
-                "time": data_x,
-                self._y_name: data_y
-            }
-            
+            data_point = {"time": data_x, self._y_name: data_y}
+
         self._distribution.append(data_point)
         self._last_data_y = data_y
         self._last_data_x = data_x
@@ -94,7 +88,7 @@ class SeriesAverageMeter:
             f"{name}_min": self._min_y,
             f"{name}_max": self._max_y,
             f"{name}_weighted_mean": weighted_mean,
-            f"{name}_distribution": self._distribution  # Now includes all metadata
+            f"{name}_distribution": self._distribution,  # Now includes all metadata
         }
 
         with open(f"{path}/{name}.json", "w") as f:

@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 if not logger.handlers:
     handler = logging.StreamHandler()
     handler.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(message)s')  # Simplified format
+    formatter = logging.Formatter("%(message)s")  # Simplified format
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
@@ -93,12 +93,12 @@ def extract_utilization_stats(run_dir: str, stat_name: str):
 def process_run(run_dir: str):
     # Try both .yml and .json config files
     config_file = None
-    for ext in ['.yml', '.json']:
+    for ext in [".yml", ".json"]:
         test_file = f"{run_dir}/config{ext}"
         if os.path.exists(test_file):
             config_file = test_file
             break
-    
+
     if config_file is None:
         print(f"No config file found in {run_dir}")
         return None
@@ -114,24 +114,37 @@ def process_run(run_dir: str):
 
     try:
         with open(config_file, "r") as f:
-            if config_file.endswith('.json'):
+            if config_file.endswith(".json"):
                 config = json.load(f)
             else:
                 config = yaml.safe_load(f)
 
         # Flatten the nested config structure
         flattened_config = {}
-        flattened_config.update({
-            "cluster_config_num_replicas": config["cluster_config"]["num_replicas"],
-            "replica_config_tensor_parallel_size": config["cluster_config"]["replica_config"]["tensor_parallel_size"],
-            "replica_config_num_pipeline_stages": config["cluster_config"]["replica_config"]["num_pipeline_stages"],
-            "replica_config_device": config["cluster_config"]["replica_config"]["device"],
-            "poisson_request_interval_generator_config_qps": (
-                config["request_generator_config"]["interval_generator_config"]["qps"]
-                if config["request_generator_config"]["interval_generator_config"]["name"] == "poisson"
-                else None
-            )
-        })
+        flattened_config.update(
+            {
+                "cluster_config_num_replicas": config["cluster_config"]["num_replicas"],
+                "replica_config_tensor_parallel_size": config["cluster_config"][
+                    "replica_config"
+                ]["tensor_parallel_size"],
+                "replica_config_num_pipeline_stages": config["cluster_config"][
+                    "replica_config"
+                ]["num_pipeline_stages"],
+                "replica_config_device": config["cluster_config"]["replica_config"][
+                    "device"
+                ],
+                "poisson_request_interval_generator_config_qps": (
+                    config["request_generator_config"]["interval_generator_config"][
+                        "qps"
+                    ]
+                    if config["request_generator_config"]["interval_generator_config"][
+                        "name"
+                    ]
+                    == "poisson"
+                    else None
+                ),
+            }
+        )
         config.update(flattened_config)
 
         request_metrics_df = pd.read_csv(request_metrics_file)
@@ -184,7 +197,9 @@ def process_run(run_dir: str):
     ):
         config["replica_scheduler_provider"] = "orca+"
     else:
-        config["replica_scheduler_provider"] = config["cluster_config"]["replica_scheduler_config"]["name"]
+        config["replica_scheduler_provider"] = config["cluster_config"][
+            "replica_scheduler_config"
+        ]["name"]
 
     config.update(
         {
@@ -219,7 +234,9 @@ def get_sim_time(sim_results_dir: str):
             if "Simulation took time" in line:
                 return float(line.split(":")[-1].strip())
     except FileNotFoundError:
-        logger.debug(f"Could not find {output_file}, using runtime from request completion time series")
+        logger.debug(
+            f"Could not find {output_file}, using runtime from request completion time series"
+        )
         return None
     except Exception as e:
         logger.warning(f"Error reading simulation time from {output_file}: {str(e)}")
@@ -248,13 +265,13 @@ def process_trace(sim_results_dir: str):
 
     # filter out None values
     all_results = [r for r in all_results if r is not None]
-    
+
     if not all_results:
         logger.error(f"No valid results found in {sim_results_dir}")
         return
 
     df = pd.DataFrame(all_results)
-    
+
     # Remove debug prints
     # print("Available columns:", df.columns.tolist())
     # print("First row:", df.iloc[0].to_dict() if not df.empty else "DataFrame is empty")
@@ -265,7 +282,10 @@ def process_trace(sim_results_dir: str):
         * df["replica_config_num_pipeline_stages"]
     )
     df["cost"] = (
-        df["runtime"] * df["num_gpus"] * df["replica_config_device"].map(GPU_COSTS) / 3600
+        df["runtime"]
+        * df["num_gpus"]
+        * df["replica_config_device"].map(GPU_COSTS)
+        / 3600
     )
     df["capacity_per_dollar"] = df["poisson_request_interval_generator_config_qps"] / (
         df["num_gpus"] * df["replica_config_device"].map(GPU_COSTS)
@@ -280,7 +300,8 @@ def process_trace(sim_results_dir: str):
         df["replica_config_device"].map(GPU_COSTS) * df["num_replica_gpus"]
     )
     df["capacity_per_replica"] = (
-        df["poisson_request_interval_generator_config_qps"] / df["cluster_config_num_replicas"]
+        df["poisson_request_interval_generator_config_qps"]
+        / df["cluster_config_num_replicas"]
     )
 
     # store the df
@@ -293,7 +314,7 @@ def process_trace(sim_results_dir: str):
     if sim_time is None:
         # Use the runtime from the DataFrame if we couldn't get it from output.log
         sim_time = df["runtime"].max()
-    
+
     cpu_hrs = sim_time / 3600
     cpu_cost = cpu_hrs * CPU_MACHINE_COST
 
@@ -309,7 +330,7 @@ def process_trace(sim_results_dir: str):
     json.dump(
         simulation_stats, open(f"{analysis_dir}/simulation_stats.json", "w"), indent=4
     )
-    
+
     # Add both logger and print
     sim_name = os.path.basename(os.path.normpath(sim_results_dir))
     msg = f"Successfully extracted stats from simulation '{sim_name}'"

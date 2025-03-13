@@ -22,23 +22,66 @@ LOCATION_TIMEZONE_MAP = {
     "São Paulo": "America/Sao_Paulo",
 }
 
+
 def main():
     parser = argparse.ArgumentParser(description="Vidur to Vessim Co-Simulation")
 
-    parser.add_argument("--vidur-sim-dir", required=True, help="Path to an already-ran Vidur simulation directory")
-    parser.add_argument("--location", required=True, choices=LOCATION_TIMEZONE_MAP.keys(), help="Simulation location")
-    parser.add_argument("--agg-freq", default="1min", help="Aggregation frequency (e.g., 1s, 1min, 5min)")
-    parser.add_argument("--analysis-type", choices=["trend analysis", "total power analysis"], default="trend analysis")
-    parser.add_argument("--step-size", type=int, default=60, help="Simulation step size in seconds")
-    parser.add_argument("--solar-scale-factor", type=int, default=5000, help="Solar scaling factor")
-    parser.add_argument("--battery-capacity", type=int, default=5000, help="Battery capacity in Wh")
-    parser.add_argument("--battery-initial-soc", type=float, default=0.4, help="Initial battery state of charge (0-1)")
-    parser.add_argument("--battery-min-soc", type=float, default=0.3, help="Minimum battery state of charge (0-1)")
-    parser.add_argument("--log-metrics", action="store_true", help="Enable detailed energy logging")
-    parser.add_argument("--carbon-analysis", action="store_true", 
-                       help="Enable carbon emissions analysis")
-    parser.add_argument("--low-carbon-threshold", type=float, default=100,
-                       help="Threshold for low carbon intensity in gCO2/kWh")
+    parser.add_argument(
+        "--vidur-sim-dir",
+        required=True,
+        help="Path to an already-ran Vidur simulation directory",
+    )
+    parser.add_argument(
+        "--location",
+        required=True,
+        choices=LOCATION_TIMEZONE_MAP.keys(),
+        help="Simulation location",
+    )
+    parser.add_argument(
+        "--agg-freq",
+        default="1min",
+        help="Aggregation frequency (e.g., 1s, 1min, 5min)",
+    )
+    parser.add_argument(
+        "--analysis-type",
+        choices=["trend analysis", "total power analysis"],
+        default="trend analysis",
+    )
+    parser.add_argument(
+        "--step-size", type=int, default=60, help="Simulation step size in seconds"
+    )
+    parser.add_argument(
+        "--solar-scale-factor", type=int, default=5000, help="Solar scaling factor"
+    )
+    parser.add_argument(
+        "--battery-capacity", type=int, default=5000, help="Battery capacity in Wh"
+    )
+    parser.add_argument(
+        "--battery-initial-soc",
+        type=float,
+        default=0.4,
+        help="Initial battery state of charge (0-1)",
+    )
+    parser.add_argument(
+        "--battery-min-soc",
+        type=float,
+        default=0.3,
+        help="Minimum battery state of charge (0-1)",
+    )
+    parser.add_argument(
+        "--log-metrics", action="store_true", help="Enable detailed energy logging"
+    )
+    parser.add_argument(
+        "--carbon-analysis",
+        action="store_true",
+        help="Enable carbon emissions analysis",
+    )
+    parser.add_argument(
+        "--low-carbon-threshold",
+        type=float,
+        default=100,
+        help="Threshold for low carbon intensity in gCO2/kWh",
+    )
 
     args = parser.parse_args()
 
@@ -58,7 +101,7 @@ def main():
         csv_file,
         agg_freq=args.agg_freq,
         analysis_type=args.analysis_type,
-        output_file=processed_file
+        output_file=processed_file,
     )
 
     # 3) Use the first and last timestamps of the aggregated data as our sim_start & sim_end
@@ -68,35 +111,39 @@ def main():
     print(f"Raw simulation start_time in data: {sim_start_time}")
     print(f"Raw simulation end_time in data: {sim_end_time}")
 
-    print(f"Interpreting these times as local time in {args.location} => {location_timezone.zone}")
+    print(
+        f"Interpreting these times as local time in {args.location} => {location_timezone.zone}"
+    )
 
     # If the timestamps are naive, treat them as local times
     if sim_start_time.tzinfo is None:
         # Step A: localize them to the location
         local_start_aware = location_timezone.localize(sim_start_time)
-        local_end_aware   = location_timezone.localize(sim_end_time)
+        local_end_aware = location_timezone.localize(sim_end_time)
 
         # Step B: Convert to UTC
         start_utc = local_start_aware.astimezone(pytz.utc)
-        end_utc   = local_end_aware.astimezone(pytz.utc)
+        end_utc = local_end_aware.astimezone(pytz.utc)
 
         # Step C: Remove the timezone entirely
         sim_start_time_utc_naive = start_utc.replace(tzinfo=None)
-        sim_end_time_utc_naive   = end_utc.replace(tzinfo=None)
+        sim_end_time_utc_naive = end_utc.replace(tzinfo=None)
 
         print("Converted sim_start_time => UTC naive:", sim_start_time_utc_naive)
         print("Converted sim_end_time   => UTC naive:", sim_end_time_utc_naive)
 
         # Overwrite the times in code
         sim_start_time = sim_start_time_utc_naive
-        sim_end_time   = sim_end_time_utc_naive
+        sim_end_time = sim_end_time_utc_naive
     else:
         # If they already have tzinfo, ensure we do the same steps
         # (but this scenario is less common in your setup)
         sim_start_time = sim_start_time.astimezone(pytz.utc).replace(tzinfo=None)
-        sim_end_time   = sim_end_time.astimezone(pytz.utc).replace(tzinfo=None)
+        sim_end_time = sim_end_time.astimezone(pytz.utc).replace(tzinfo=None)
 
-    print(f"Final simulation time used by Vessim (UTC naive): {sim_start_time} -> {sim_end_time}")
+    print(
+        f"Final simulation time used by Vessim (UTC naive): {sim_start_time} -> {sim_end_time}"
+    )
 
     # 4) Now run the Vessim simulation with these naive-UTC times
     sim_output_file = os.path.join(vessim_output_dir, "vessim_output.csv")
@@ -111,16 +158,16 @@ def main():
         battery_min_soc=args.battery_min_soc,
         output_file=sim_output_file,
         analysis_type=args.analysis_type,
-        location=args.location
+        location=args.location,
     )
 
     # 5) Post-process and visualize results
     plot_vessim_results(
-        output_file=sim_output_file, 
+        output_file=sim_output_file,
         step_size=args.step_size,
         save_dir=vessim_output_dir,
         location_tz=location_timezone,  # for converting back to local time in plots
-        log_metrics=args.log_metrics or args.carbon_analysis
+        log_metrics=args.log_metrics or args.carbon_analysis,
     )
 
 
