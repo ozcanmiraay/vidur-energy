@@ -52,6 +52,25 @@ To execute a standard simulation (**without energy tracking**):
 ```sh
 python -m vidur.main
 ```
+Example simulation run with extended parameters:
+```sh
+python -m vidur.main  \
+--replica_config_device a100 \
+--replica_config_model_name meta-llama/Llama-2-7b-hf \
+--cluster_config_num_replicas 1 \
+--replica_config_tensor_parallel_size 1 \
+--replica_config_num_pipeline_stages 1 \
+--request_generator_config_type synthetic \
+--synthetic_request_generator_config_num_requests 400000 \
+--length_generator_config_type zipf \
+--interval_generator_config_type poisson \
+--poisson_request_interval_generator_config_qps 20 \
+--replica_scheduler_config_type vllm \
+--vllm_scheduler_config_batch_size_cap 128 \
+--vllm_scheduler_config_max_tokens_in_batch 4096 \
+--metrics_config_store_utilization_metrics \
+--execution_time_predictor_config_type random_forrest
+```
 
 ---
 
@@ -160,10 +179,10 @@ This branch **integrates Vidur with Vessim**, enabling:
 
 ⚠️ Please create a new virtual environment and install Vidur + Vessim requirements to work on this branch. Run your Vidur simulations first, and later run Vessim on your simulations' subdirectories. This step is crucial to handle the numpy version incompatibility between Vidur and Vessim. 
 
-### **🌞 Running Vidur-Vessim Co-Simulation**  
+### **🌞 Running Vidur-Vessim Co-Simulation (Example):**  
 ```sh
 python -m vidur.vidur_vessim.cli \
---vidur-sim-dir simulator_output/vidur-vessim-example \
+--vidur-sim-dir simulator_output/NAME-OF-THE-SIMULATION-RESULT-SUBDIRECTORY \
 --location "San Francisco" \
 --agg-freq 1min \
 --analysis-type "trend analysis" \
