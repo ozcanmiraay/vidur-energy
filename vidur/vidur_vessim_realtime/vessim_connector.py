@@ -124,7 +124,8 @@ def run_vessim_for_chunk(
         return pd.DataFrame(), battery.soc(), 0.0
 
     # Set time as index
-    chunk_vessim_df.set_index("time", inplace=True)
+    if "time" in chunk_vessim_df.columns:
+        chunk_vessim_df.set_index("time", inplace=True)
 
     # Some stats: average solar power
     if "solar.p" in chunk_vessim_df.columns:
