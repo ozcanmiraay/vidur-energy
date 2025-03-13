@@ -204,9 +204,10 @@ This branch **integrates Vidur with Vessim**, enabling:
 ⚠️ Please create a new virtual environment and install Vidur + Vessim requirements to work on this branch. Run your Vidur simulations first, and later run Vessim on your simulations' subdirectories. This step is crucial to handle the numpy version incompatibility between Vidur and Vessim. 
 
 ### **🌞 Running Vidur-Vessim Co-Simulation (Example):**  
+Let's assume the name of our simulation result subdirectory is 'vidur-vessim-example-demo.'
 ```sh
 python -m vidur.vidur_vessim.cli \
---vidur-sim-dir simulator_output/vidur-results-demo \
+--vidur-sim-dir simulator_output/vidur-vessim-example-demo \
 --location "San Francisco" \
 --agg-freq 1min \
 --analysis-type "trend analysis" \
