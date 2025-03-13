@@ -93,16 +93,17 @@ The `energy-tracking` branch introduces **power and energy-related analytics** w
 ### 🌱 **Running Energy Tracking & Analysis**  
 
 #### 📊 **Extracting Energy Metrics from a Simulation**  
+Let's assume the name of our simulation result subdirectory is 'vidur-results-demo.'
 ```sh
 python -m vidur.config_optimizer.analyzer.stats_extractor_energy \
---sim-results-dir simulator_output/NAME-OF-THE-SIMULATION-RESULT-SUBDIRECTORY
+--sim-results-dir simulator_output/vidur-results-demo
 ```
 📁 This generates an **`analysis/` subdirectory** containing energy usage statistics.  
 
 #### 📄 **Generating Energy Reports**  
 ```sh
 python -m vidur.config_optimizer.analyzer.stats_extractor_energy_reporting \
---sim-results-dir simulator_output/NAME-OF-THE-SIMULATION-RESULT-SUBDIRECTORY  \
+--sim-results-dir simulator_output/vidur-results-demo  \
 --region california
 ```
 This generates **visual reports** on:  
@@ -182,7 +183,7 @@ This branch **integrates Vidur with Vessim**, enabling:
 ### **🌞 Running Vidur-Vessim Co-Simulation (Example):**  
 ```sh
 python -m vidur.vidur_vessim.cli \
---vidur-sim-dir simulator_output/NAME-OF-THE-SIMULATION-RESULT-SUBDIRECTORY \
+--vidur-sim-dir simulator_output/vidur-results-demo \
 --location "San Francisco" \
 --agg-freq 1min \
 --analysis-type "trend analysis" \
