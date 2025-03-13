@@ -1,7 +1,9 @@
 import pandas as pd
 import vessim as vs
 import datetime
-from typing import Tuple
+from typing import Tuple, Optional
+import os
+
 
 def run_vessim_for_chunk(
     usage_df: pd.DataFrame,
@@ -13,7 +15,8 @@ def run_vessim_for_chunk(
     solar_scale_factor: float,
     battery_capacity: float,
     battery_min_soc: float,
-    output_file: str = None
+    output_file: str = None,
+    data_dir: Optional[str] = None
 ) -> Tuple[pd.DataFrame, float, float]:
     """
     Runs Vessim from chunk_start_time to chunk_end_time using real Solcast and WattTime data.
@@ -40,6 +43,8 @@ def run_vessim_for_chunk(
         Minimum SoC (e.g., 0.2).
     output_file : str, optional
         If provided, Vessim’s Monitor can output a CSV to this file.
+    data_dir : str, optional
+        Path to directory containing the Solcast and WattTime data (defaults to ../data relative to script).
     
     Returns
     -------
@@ -50,25 +55,30 @@ def run_vessim_for_chunk(
     avg_solar_power : float
         Average solar generation (W) during the chunk.
     """
-    # If usage_df is empty or chunk duration is non-positive, skip
+    # Handle default data_dir
+    if data_dir is None:
+        # Automatically resolve the 'data' directory relative to this file
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.abspath(os.path.join(current_dir, "..", "..", "data"))
+
+    # Early exit if no data
     if usage_df.empty:
         print("Usage DataFrame is empty; skipping Vessim run.")
         return pd.DataFrame(), initial_soc, 0.0
-    
+
     duration_sec = int((chunk_end_time - chunk_start_time).total_seconds())
     if duration_sec <= 0:
         print("Non-positive chunk duration; skipping Vessim run.")
         return pd.DataFrame(), initial_soc, 0.0
 
-    # Create signals from usage_df
+    # --- Create Power Signal from Vidur Usage
     power_signal = vs.HistoricalSignal(usage_df[["power_usage_watts"]])
 
-    # Real solar signal via solcast2022_global for given location
-    # We pass the 'start_time' as chunk_start_time so it replays from that time onward
+    # --- Solar Signal from Solcast Dataset
     solar_signal = vs.HistoricalSignal.load(
         "solcast2022_global",
         column=location,
-        data_dir=None,  # or specify if using a custom data directory
+        data_dir=data_dir,
         params={
             "scale": solar_scale_factor,
             "start_time": chunk_start_time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -76,33 +86,37 @@ def run_vessim_for_chunk(
         }
     )
 
-    # Real carbon intensity signal via WattTime
+    solar_signal.now(at=chunk_start_time.strftime("%Y-%m-%d %H:%M:%S"), column=location)
+
+
+    # --- Carbon Intensity Signal from WattTime Dataset
     carbon_signal = vs.HistoricalSignal.load(
         "watttime2023_caiso-north",
-        data_dir=None,  # or specify custom
+        data_dir=data_dir,
         params={
             "start_time": chunk_start_time.strftime("%Y-%m-%d %H:%M:%S"),
             "use_forecast": False
         }
     )
 
-    # Create the battery (ClcBattery or SimpleBattery)
+    carbon_signal.now(at=chunk_start_time.strftime("%Y-%m-%d %H:%M:%S"))
+
+    # --- Battery Setup
     battery = vs.ClcBattery(
         number_of_cells=int(battery_capacity / 3.63),
         initial_soc=initial_soc,
         min_soc=battery_min_soc
     )
 
-    # Initialize environment
+    # --- Initialize Vessim Environment
     env = vs.Environment(sim_start=chunk_start_time.strftime("%Y-%m-%d %H:%M:%S"))
 
-    # Create a Monitor
+    # --- Attach Monitor
     if not output_file:
         raise ValueError("output_file path must be provided for Vessim output.")
     monitor = vs.Monitor(outfile=output_file)
 
-
-    # Add microgrid
+    # --- Add Microgrid
     env.add_microgrid(
         actors=[
             vs.Actor(name="vidur_power_usage", signal=power_signal),
@@ -111,28 +125,20 @@ def run_vessim_for_chunk(
         ],
         controllers=[monitor],
         storage=battery,
-        step_size=step_size  # 60s for 1-min steps, e.g.
+        step_size=step_size
     )
 
-    # Run simulation
+    # --- Run Simulation
     env.run(until=duration_sec)
 
-    # Convert logs to DataFrame
+    # --- Read Monitor Output
     chunk_vessim_df = pd.read_csv(output_file, parse_dates=["time"], index_col="time")
     if chunk_vessim_df.empty:
         print("No logs from Vessim monitor; returning empty DataFrame.")
         return pd.DataFrame(), battery.soc(), 0.0
 
-    # Set time as index
-    if "time" in chunk_vessim_df.columns:
-        chunk_vessim_df.set_index("time", inplace=True)
-
-    # Some stats: average solar power
-    if "solar.p" in chunk_vessim_df.columns:
-        avg_solar_power = chunk_vessim_df["solar.p"].mean()
-    else:
-        avg_solar_power = 0.0
-
+    # --- Compute Average Solar Power
+    avg_solar_power = chunk_vessim_df.get("solar.p", pd.Series([0.0])).mean()
     final_battery_soc = battery.soc()
 
     return chunk_vessim_df, final_battery_soc, avg_solar_power

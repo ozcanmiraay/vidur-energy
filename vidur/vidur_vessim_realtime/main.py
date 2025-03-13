@@ -8,7 +8,7 @@ if __name__ == "__main__":
 
     # 2. Set your simulation start/end times
     simulation_start_time = datetime.datetime(2025, 2, 28, 21, 0, 0)
-    simulation_end_time   = simulation_start_time + datetime.timedelta(hours=24)
+    simulation_end_time   = simulation_start_time + datetime.timedelta(hours=1)
 
     # 3. Define the initial Vidur config
     initial_config = {
