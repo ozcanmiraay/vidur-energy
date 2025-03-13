@@ -111,39 +111,39 @@ def main():
     print(f"Raw simulation start_time in data: {sim_start_time}")
     print(f"Raw simulation end_time in data: {sim_end_time}")
 
-    print(
-        f"Interpreting these times as local time in {args.location} => {location_timezone.zone}"
-    )
+    # print(
+    #     f"Interpreting these times as local time in {args.location} => {location_timezone.zone}"
+    # )
 
-    # If the timestamps are naive, treat them as local times
-    if sim_start_time.tzinfo is None:
-        # Step A: localize them to the location
-        local_start_aware = location_timezone.localize(sim_start_time)
-        local_end_aware = location_timezone.localize(sim_end_time)
+    # # If the timestamps are naive, treat them as local times
+    # if sim_start_time.tzinfo is None:
+    #     # Step A: localize them to the location
+    #     local_start_aware = location_timezone.localize(sim_start_time)
+    #     local_end_aware = location_timezone.localize(sim_end_time)
 
-        # Step B: Convert to UTC
-        start_utc = local_start_aware.astimezone(pytz.utc)
-        end_utc = local_end_aware.astimezone(pytz.utc)
+    #     # Step B: Convert to UTC
+    #     start_utc = local_start_aware.astimezone(pytz.utc)
+    #     end_utc = local_end_aware.astimezone(pytz.utc)
 
-        # Step C: Remove the timezone entirely
-        sim_start_time_utc_naive = start_utc.replace(tzinfo=None)
-        sim_end_time_utc_naive = end_utc.replace(tzinfo=None)
+    #     # Step C: Remove the timezone entirely
+    #     sim_start_time_utc_naive = start_utc.replace(tzinfo=None)
+    #     sim_end_time_utc_naive = end_utc.replace(tzinfo=None)
 
-        print("Converted sim_start_time => UTC naive:", sim_start_time_utc_naive)
-        print("Converted sim_end_time   => UTC naive:", sim_end_time_utc_naive)
+    #     print("Converted sim_start_time => UTC naive:", sim_start_time_utc_naive)
+    #     print("Converted sim_end_time   => UTC naive:", sim_end_time_utc_naive)
 
-        # Overwrite the times in code
-        sim_start_time = sim_start_time_utc_naive
-        sim_end_time = sim_end_time_utc_naive
-    else:
-        # If they already have tzinfo, ensure we do the same steps
-        # (but this scenario is less common in your setup)
-        sim_start_time = sim_start_time.astimezone(pytz.utc).replace(tzinfo=None)
-        sim_end_time = sim_end_time.astimezone(pytz.utc).replace(tzinfo=None)
+    #     # Overwrite the times in code
+    #     sim_start_time = sim_start_time_utc_naive
+    #     sim_end_time = sim_end_time_utc_naive
+    # else:
+    #     # If they already have tzinfo, ensure we do the same steps
+    #     # (but this scenario is less common in your setup)
+    #     sim_start_time = sim_start_time.astimezone(pytz.utc).replace(tzinfo=None)
+    #     sim_end_time = sim_end_time.astimezone(pytz.utc).replace(tzinfo=None)
 
-    print(
-        f"Final simulation time used by Vessim (UTC naive): {sim_start_time} -> {sim_end_time}"
-    )
+    # print(
+    #     f"Final simulation time used by Vessim (UTC naive): {sim_start_time} -> {sim_end_time}"
+    # )
 
     # 4) Now run the Vessim simulation with these naive-UTC times
     sim_output_file = os.path.join(vessim_output_dir, "vessim_output.csv")
