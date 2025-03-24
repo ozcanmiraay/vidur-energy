@@ -41,8 +41,11 @@ def prepare_vessim_data(
                 "power_usage_watts": "mean",
                 "energy_usage_joules": "mean",
                 "gpu_hours": "mean",
-                "model_flop_utilization": "mean",
             }
+        )
+        # Weighted MFU
+        aggregated["model_flop_utilization"] = vessim_ready_data.resample(agg_freq).apply(
+            lambda x: weighted_avg(x, "model_flop_utilization", "power_usage_watts")
         )
 
     elif analysis_type == "total power analysis":
