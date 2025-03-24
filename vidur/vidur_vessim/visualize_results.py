@@ -51,6 +51,7 @@ def plot_vessim_results(
     save_dir="vessim_analysis",
     location_tz=None,
     log_metrics=False,
+    analysis_type="trend analysis",
 ):
     """Plots Vessim results, including power usage, battery SOC, and carbon emissions."""
 
@@ -70,7 +71,7 @@ def plot_vessim_results(
     os.makedirs(save_dir, exist_ok=True)
     log_path = os.path.join(save_dir, "simulation_metrics.txt")
 
-    ## **Initialize Log File**
+    ## Initialize Log File
     if log_metrics:
         # Start with a fresh log file
         with open(log_path, "w") as log_file:
@@ -85,18 +86,41 @@ def plot_vessim_results(
         for label in ax.get_xticklabels():
             label.set_rotation(45)
             label.set_ha("right")
-
-    ## **Plot: Power Usage & Solar Generation**
+            
+    ## Plot: Power Usage & Solar Generation
     fig, ax1 = plt.subplots(figsize=(12, 6))
     fig.suptitle("Power Flow Analysis", fontsize=16, y=0.95)
 
-    ax1.fill_between(
-        df.index, 0, df["solar.p"], color="gold", alpha=0.35, label="Solar Generation"
-    )
-    ax1.plot(df.index, df["vidur_power_usage.p"], color="red", label="Power Demand (W)")
-    ax1.plot(df.index, df["grid_power"], color="blue", label="Grid Power (W)")
+    # Automatically scale to MW if values are large
+    if analysis_type == "total power analysis" and df["vidur_power_usage.p"].abs().max() > 1e5:
+        scale_factor = 1e6
+        y_unit = "MW"
+    else:
+        scale_factor = 1
+        y_unit = "W"
 
-    ax1.set_ylabel("Power (W)", fontsize=12)
+    ax1.fill_between(
+        df.index,
+        0,
+        df["solar.p"] / scale_factor,
+        color="gold",
+        alpha=0.35,
+        label=f"Solar Generation ({y_unit})"
+    )
+    ax1.plot(
+        df.index,
+        df["vidur_power_usage.p"] / scale_factor,
+        color="red",
+        label=f"Power Demand ({y_unit})"
+    )
+    ax1.plot(
+        df.index,
+        df["grid_power"] / scale_factor,
+        color="blue",
+        label=f"Grid Power ({y_unit})"
+    )
+
+    ax1.set_ylabel(f"Power ({y_unit})", fontsize=12)
     ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12)
 
     ax1.legend(fontsize=10)
@@ -109,7 +133,7 @@ def plot_vessim_results(
     plt.savefig(power_plot_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-    ## **Plot: Battery State of Charge (SOC)**
+    ## Plot: Battery State of Charge (SOC)
     if "storage.soc" in df.columns:
         fig, ax2 = plt.subplots(figsize=(12, 6))
         fig.suptitle("Battery State of Charge", fontsize=16, y=0.95)
@@ -236,7 +260,7 @@ def plot_vessim_results(
             print(f"📉 Discharging: {discharging_time:.1f}%")
             print(f"💤 Idle: {idle_time:.1f}%")
 
-    ## **Plot: Carbon Emissions**
+    ## Plot: Carbon Emissions
     if "carbon_intensity.p" in df.columns:
         emissions_df = calculate_carbon_emissions(df, step_size)
 
@@ -366,12 +390,21 @@ def plot_vessim_results(
         plt.savefig(emissions_plot_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-    ## **Final System Metrics**
+    ## Final System Metrics
     if log_metrics:
-        total_demand = abs(df["vidur_power_usage.p"].sum() * step_size / 3600000)
-        total_solar = df["solar.p"].sum() * step_size / 3600000
+        if 'analysis_type' not in locals():
+            analysis_type = 'trend analysis'  # fallback default
+
+        if analysis_type == "trend analysis":
+            total_demand = abs(df["vidur_power_usage.p"].sum() * step_size / 3600000)
+            total_solar = df["solar.p"].sum() * step_size / 3600000
+            total_grid = abs(df["grid_power"].sum() * step_size / 3600000)
+        else:  # total power analysis
+            total_demand = abs(df["vidur_power_usage.p"].sum() / 3600000)
+            total_solar = df["solar.p"].sum() / 3600000
+            total_grid = abs(df["grid_power"].sum() / 3600000)
+
         total_renewable_energy = total_solar
-        total_grid = abs(df["grid_power"].sum() * step_size / 3600000)
 
         avg_soc = df["storage.soc"].mean() * 100 if "storage.soc" in df.columns else 0
         min_soc_time = (

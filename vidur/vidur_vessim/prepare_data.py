@@ -23,41 +23,46 @@ def prepare_vessim_data(
         }
     )
 
-    vessim_ready_data["power_usage_watts"] *= -1  # Represent power consumption
+    # Represent power demand as negative
+    vessim_ready_data["power_usage_watts"] *= -1
 
-    def weighted_avg(data, weight_col):
-        return (data["model_flop_utilization"] * data[weight_col]).sum() / data[
-            weight_col
-        ].sum()
+    def weighted_avg(group, value_col, weight_col):
+        weights = group[weight_col].fillna(0)
+        values = group[value_col].fillna(0)
+        total_weight = weights.sum()
+        if total_weight == 0:
+            return 0
+        return (values * weights).sum() / total_weight
 
     if analysis_type == "trend analysis":
-        aggregated = vessim_ready_data.resample(agg_freq).agg(
-            {
-                "power_usage_watts": "mean",
-                "energy_usage_joules": "mean",
-                "gpu_hours": "mean",
-                "model_flop_utilization": "mean",
-            }
+        # Weighted aggregation for trend analysis
+        aggregated = vessim_ready_data.resample(agg_freq).apply(
+            lambda group: pd.Series({
+                "power_usage_watts": weighted_avg(group, "power_usage_watts", "energy_usage_joules"),
+                "energy_usage_joules": group["energy_usage_joules"].mean(),
+                "gpu_hours": group["gpu_hours"].mean(),
+                "model_flop_utilization": weighted_avg(group, "model_flop_utilization", "power_usage_watts"),
+            })
         )
+
     elif analysis_type == "total power analysis":
+        # Sum-based aggregation for total power analysis
         aggregated = vessim_ready_data.resample(agg_freq).agg(
             {
                 "power_usage_watts": "sum",
                 "energy_usage_joules": "sum",
                 "gpu_hours": "sum",
-                "model_flop_utilization": "mean",
             }
         )
+        # Weighted MFU
+        aggregated["model_flop_utilization"] = vessim_ready_data.resample(agg_freq).apply(
+            lambda x: weighted_avg(x, "model_flop_utilization", "power_usage_watts")
+        )
+        # Add batch stage count
         aggregated["batch_stage_count"] = vessim_ready_data.resample(agg_freq)[
             "power_usage_watts"
         ].count()
 
-    aggregated["model_flop_utilization"] = vessim_ready_data.resample(agg_freq).apply(
-        lambda x: weighted_avg(x, weight_col="power_usage_watts")
-    )
-
-    # Save the processed data to CSV
+    # Save to CSV and return
     aggregated.to_csv(output_file)
-
-    # Return the actual DataFrame, not just the file path
     return aggregated
