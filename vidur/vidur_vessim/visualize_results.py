@@ -51,7 +51,10 @@ def plot_vessim_results(
     save_dir="vessim_analysis",
     location_tz=None,
     log_metrics=False,
+    carbon_analysis=False,
     analysis_type="trend analysis",
+    low_carbon_threshold=100,
+    high_carbon_threshold=200,
 ):
     """Plots Vessim results, including power usage, battery SOC, and carbon emissions."""
 
@@ -261,7 +264,7 @@ def plot_vessim_results(
             print(f"💤 Idle: {idle_time:.1f}%")
 
     ## Plot: Carbon Emissions
-    if "carbon_intensity.p" in df.columns:
+    if carbon_analysis and "carbon_intensity.p" in df.columns:
         emissions_df = calculate_carbon_emissions(df, step_size)
 
         # Calculate totals for metrics
@@ -273,8 +276,8 @@ def plot_vessim_results(
         avg_intensity = df["carbon_intensity.p"].mean()
         peak_intensity = df["carbon_intensity.p"].max()
         min_intensity = df["carbon_intensity.p"].min()
-        low_carbon_hours = (df["carbon_intensity.p"] < 100).sum() * step_size / 3600
-        high_carbon_hours = (df["carbon_intensity.p"] > 200).sum() * step_size / 3600
+        low_carbon_hours = (df["carbon_intensity.p"] < low_carbon_threshold).sum() * step_size / 3600
+        high_carbon_hours = (df["carbon_intensity.p"] > high_carbon_threshold).sum() * step_size / 3600
 
         if log_metrics:
             with open(log_path, "a") as log_file:
@@ -300,11 +303,9 @@ def plot_vessim_results(
                 log_file.write(f"• Minimum: {min_intensity:.1f} gCO₂/kWh\n")
 
                 log_file.write("\n⏱️ Time Analysis:\n")
+                log_file.write(f"• Low Carbon Hours (<{low_carbon_threshold} gCO₂/kWh): {low_carbon_hours:.1f} hours\n")
                 log_file.write(
-                    f"• Low Carbon Hours (<100 gCO₂/kWh): {low_carbon_hours:.1f} hours\n"
-                )
-                log_file.write(
-                    f"• High Carbon Hours (>200 gCO₂/kWh): {high_carbon_hours:.1f} hours\n"
+                    f"• High Carbon Hours (> {high_carbon_threshold} gCO₂/kWh): {high_carbon_hours:.1f} hours\n"
                 )
                 log_file.write("=" * 50 + "\n")
 
@@ -365,11 +366,19 @@ def plot_vessim_results(
             linewidth=2,
         )
         ax2.axhline(
-            y=100,
+            y=low_carbon_threshold,
             color="#27AE60",
             linestyle="--",
             alpha=0.5,
-            label="Low Carbon Threshold",
+            label=f"Low Carbon Threshold ({low_carbon_threshold} gCO₂/kWh)",
+        )
+
+        ax2.axhline(
+            y=high_carbon_threshold,
+            color="#C0392B",
+            linestyle="--",
+            alpha=0.5,
+            label=f"High Carbon Threshold ({high_carbon_threshold} gCO₂/kWh)",
         )
 
         ax2.set_ylabel("Grid Carbon Intensity\n(gCO₂/kWh)", fontsize=12)

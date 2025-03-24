@@ -84,6 +84,13 @@ def main():
     )
 
     parser.add_argument(
+        "--high-carbon-threshold",
+        type=float,
+        default=200,
+        help="Threshold for high carbon intensity in gCO2/kWh",
+    )
+
+    parser.add_argument(
         "--interpolate-datasets", 
         action="store_true", 
         help="Enable cubic interpolation for solar and carbon signals")
@@ -182,8 +189,11 @@ def main():
         step_size=args.step_size,
         save_dir=vessim_output_dir,
         location_tz=location_timezone,  # for converting back to local time in plots
-        log_metrics=args.log_metrics or args.carbon_analysis,
+        log_metrics=args.log_metrics,
+        carbon_analysis=args.carbon_analysis,
         analysis_type=args.analysis_type,
+        low_carbon_threshold=args.low_carbon_threshold,
+        high_carbon_threshold=args.high_carbon_threshold,
     )
 
 

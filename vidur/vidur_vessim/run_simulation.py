@@ -2,24 +2,18 @@ import pandas as pd
 import vessim as vs
 
 def interpolate_signal(signal, location, step_size, sim_start_time, sim_end_time):
-    """
-    Selectively interpolates missing values in a HistoricalSignal using cubic interpolation.
-    Keeps original values intact at original timestamps.
-    """
     original_index = pd.to_datetime(signal._actual[location][0])
     values = signal._actual[location][1]
     df = pd.DataFrame({"value": values}, index=original_index)
 
-    # Full high-resolution index
     full_index = pd.date_range(start=sim_start_time, end=sim_end_time, freq=f"{step_size}s")
-
-    # Reindex & interpolate
     df_interp = df.reindex(full_index)
     df_backup = df_interp.copy()
     df_interp = df_interp.interpolate(method="cubic")
     df_interp.loc[df_backup.notna().all(axis=1)] = df_backup.loc[df_backup.notna().all(axis=1)]
 
-    return vs.HistoricalSignal(df_interp["value"])
+    signal = vs.HistoricalSignal(df_interp["value"])
+    return signal, df_interp
 
 
 def run_vessim_simulation(
@@ -49,7 +43,7 @@ def run_vessim_simulation(
     )
 
     if interpolate_signals:
-        carbon_intensity_signal = interpolate_signal(
+        carbon_intensity_signal, _ = interpolate_signal(
             signal=raw_carbon,
             location="Caiso_North", 
             step_size=step_size,
@@ -67,7 +61,7 @@ def run_vessim_simulation(
     )
 
     if interpolate_signals:
-        solar_signal_interpolated = interpolate_signal(
+        solar_signal_interpolated, solar_interp_df = interpolate_signal(
             signal=raw_solar,
             location=location,
             step_size=step_size,
@@ -80,8 +74,8 @@ def run_vessim_simulation(
     # --- Apply batch_stage_count adjustment in total power analysis ---
     if analysis_type == "total power analysis":
         solar_df = pd.DataFrame(
-            {"solar_power": solar_signal_interpolated._data.values},
-            index=solar_signal_interpolated._data.index,
+            {"solar_power": solar_interp_df["value"]},
+            index=solar_interp_df.index,
         )
 
         if "batch_stage_count" in data.columns:
