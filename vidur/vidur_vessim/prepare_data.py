@@ -35,14 +35,14 @@ def prepare_vessim_data(
         return (values * weights).sum() / total_weight
 
     if analysis_type == "trend analysis":
-        # Weighted aggregation for trend analysis
-        aggregated = vessim_ready_data.resample(agg_freq).apply(
-            lambda group: pd.Series({
-                "power_usage_watts": weighted_avg(group, "power_usage_watts", "power_usage_watts"),
-                "energy_usage_joules": group["energy_usage_joules"].mean(),
-                "gpu_hours": group["gpu_hours"].mean(),
-                "model_flop_utilization": weighted_avg(group, "model_flop_utilization", "power_usage_watts"),
-            })
+        # Mean aggregation for trend analysis
+        aggregated = vessim_ready_data.resample(agg_freq).agg(
+            {
+                "power_usage_watts": "mean",
+                "energy_usage_joules": "mean",
+                "gpu_hours": "mean",
+                "model_flop_utilization": "mean",
+            }
         )
 
     elif analysis_type == "total power analysis":
