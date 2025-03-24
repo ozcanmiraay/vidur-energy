@@ -47,10 +47,6 @@ def run_vessim_simulation(
             # Match indexes by aggregating batch_stage_count to match solar_df frequency
             batch_stage_count_aligned = data["batch_stage_count"].resample(agg_freq).sum()
 
-            # Debug print to verify index alignment
-            print("[DEBUG] Solar DF index sample:", solar_df.index[:5])
-            print("[DEBUG] Batch stage index sample:", batch_stage_count_aligned.index[:5])
-
             # Align batch_stage_count with solar_df index
             solar_df["batch_stage_count"] = batch_stage_count_aligned.reindex(
                 solar_df.index, method="nearest"
