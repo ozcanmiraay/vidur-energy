@@ -116,14 +116,6 @@ def main():
         output_file=processed_file,
     )
 
-    # 🔍 DEBUG SANITY CHECK
-    print(f"\n[DEBUG] Aggregated data check for analysis_type = '{args.analysis_type}'")
-    print("→ Power usage mean (W):", vessim_ready_data["power_usage_watts"].mean())
-    print("→ Power usage sum (Wh approx):", vessim_ready_data["power_usage_watts"].sum() * args.step_size / 3600)
-    print("→ Total GPU hours:", vessim_ready_data["gpu_hours"].sum())
-    print("→ Total Energy (J):", vessim_ready_data["energy_usage_joules"].sum())
-    print("→ Mean MFU:", vessim_ready_data["model_flop_utilization"].mean())
-
     # 3) Use the first and last timestamps of the aggregated data as our sim_start & sim_end
     sim_start_time = vessim_ready_data.index[0]
     sim_end_time = vessim_ready_data.index[-1]
