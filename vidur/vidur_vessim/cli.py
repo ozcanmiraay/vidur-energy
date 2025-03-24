@@ -83,6 +83,11 @@ def main():
         help="Threshold for low carbon intensity in gCO2/kWh",
     )
 
+    parser.add_argument(
+        "--interpolate-datasets", 
+        action="store_true", 
+        help="Enable cubic interpolation for solar and carbon signals")
+
     args = parser.parse_args()
 
     location_timezone = pytz.timezone(LOCATION_TIMEZONE_MAP[args.location])
@@ -168,6 +173,7 @@ def main():
         analysis_type=args.analysis_type,
         location=args.location,
         agg_freq=args.agg_freq,
+        interpolate_signals=args.interpolate_datasets,
     )
 
     # 5) Post-process and visualize results
