@@ -31,7 +31,7 @@ def main():
     num_requests = 1024
 
     # Fixed QPS for all tests
-    qps = 5
+    qps = 6.45
 
     # Define parallelization configurations (Pairwise NVLink Node - 4 GPUs)
     parallelization_settings = [{"TP": tp, "PP": pp} for tp, pp in itertools.product([1, 2, 4], repeat=2)]
