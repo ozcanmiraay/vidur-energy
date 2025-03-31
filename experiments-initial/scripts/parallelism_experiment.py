@@ -29,7 +29,9 @@ def run_simulation(tp_size: int, pp_stages: int, output_dir: str):
         "--replica_scheduler_config_type", "vllm",
         "--vllm_scheduler_config_batch_size_cap", "128",
         "--metrics_config_output_dir", output_dir,
-        "--metrics_config_store_utilization_metrics"
+        "--metrics_config_store_utilization_metrics",
+        "--no-metrics_config_enable_chrome_trace",
+        "--no-metrics_config_store_plots"
     ]
     
     print(f"\nRunning simulation with TP={tp_size}, PP={pp_stages}")

@@ -31,7 +31,9 @@ def run_simulation(batch_size: int, output_dir: str):
         "--vllm_scheduler_config_num_blocks", "512",
         "--metrics_config_store_utilization_metrics",
         "--execution_time_predictor_config_type", "random_forrest",
-        "--metrics_config_output_dir", output_dir
+        "--metrics_config_output_dir", output_dir,
+        "--no-metrics_config_enable_chrome_trace",
+        "--no-metrics_config_store_plots"
     ]
     
     print(f"\nRunning simulation with batch_size={batch_size}")

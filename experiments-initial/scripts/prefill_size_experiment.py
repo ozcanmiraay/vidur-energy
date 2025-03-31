@@ -30,7 +30,9 @@ def run_simulation(prefill_size: int, batch_size_cap: int, output_dir: str):
         "--vllm_scheduler_config_max_tokens_in_batch", "4096",
         "--vllm_scheduler_config_watermark_blocks_fraction", "0.01",
         "--metrics_config_output_dir", output_dir,
-        "--metrics_config_store_utilization_metrics"
+        "--metrics_config_store_utilization_metrics",
+        "--no-metrics_config_enable_chrome_trace",
+        "--no-metrics_config_store_plots"
     ]
     
     print(f"\nRunning simulation with prefill_size={prefill_size} and batch_size_cap={batch_size_cap}")
