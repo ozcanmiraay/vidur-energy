@@ -69,6 +69,17 @@ def plot_vessim_results(
         df.index = df.index.tz_convert(location_tz)
         print(f"Data range in {location_tz.zone}: {df.index[0]} to {df.index[-1]}")
 
+
+    # If carbon intensity is stored in separate CSV, merge it in
+    if carbon_analysis and "carbon_intensity.p" not in df.columns:
+        carbon_file = output_file.replace(".csv", "_carbon.csv")
+        if os.path.exists(carbon_file):
+            carbon_df = pd.read_csv(carbon_file, parse_dates=["time"], index_col="time")
+            df = df.join(carbon_df.rename(columns={"carbon_intensity": "carbon_intensity.p"}), how="left")
+            print("🟢 Carbon intensity data merged from separate file.")
+        else:
+            print(f"⚠️ Expected carbon file not found: {carbon_file}")
+
     df["grid_power"] = df["e_delta"] / step_size
 
     os.makedirs(save_dir, exist_ok=True)

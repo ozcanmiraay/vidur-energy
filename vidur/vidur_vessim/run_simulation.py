@@ -1,6 +1,24 @@
+from datetime import datetime
 import pandas as pd
 import vessim as vs
 
+# Passive carbon logger that does not affect grid balance
+class CarbonLogger(vs.Controller):
+    def __init__(self, signal: vs.Signal, outfile: str, step_size: int = 60):
+        super().__init__(step_size=step_size)
+        self.signal = signal
+        self.outfile = outfile
+        self.records = []
+
+    def step(self, time: datetime, p_delta: float, e_delta: float, state: dict):
+        value = self.signal.now(at=time)
+        self.records.append({"time": time, "carbon_intensity": value})
+
+    def finalize(self):
+        df = pd.DataFrame(self.records)
+        df.to_csv(self.outfile, index=False)
+
+# ✅ Utility to interpolate time-aligned signal
 def interpolate_signal(signal, location, step_size, sim_start_time, sim_end_time):
     original_index = pd.to_datetime(signal._actual[location][0])
     values = signal._actual[location][1]
@@ -15,7 +33,7 @@ def interpolate_signal(signal, location, step_size, sim_start_time, sim_end_time
     signal = vs.HistoricalSignal(df_interp["value"])
     return signal, df_interp
 
-
+# Main simulation logic
 def run_vessim_simulation(
     data,
     sim_start_time,
@@ -37,7 +55,7 @@ def run_vessim_simulation(
     # --- Power signal (already resampled upstream) ---
     power_signal = vs.HistoricalSignal(data[["power_usage_watts"]])
 
-    # --- Carbon Intensity Signal (conditionally interpolated) ---
+    # --- Carbon Intensity Signal (only for logging, not as actor) ---
     raw_carbon = vs.HistoricalSignal.load(
         "watttime2023_caiso-north", params={"start_time": sim_start_time}
     )
@@ -71,7 +89,7 @@ def run_vessim_simulation(
     else:
         solar_signal_interpolated = raw_solar
 
-    # --- Apply batch_stage_count adjustment in total power analysis ---
+    # --- Batch stage adjustment for total power analysis ---
     if analysis_type == "total power analysis":
         solar_df = pd.DataFrame(
             {"solar_power": solar_interp_df["value"]},
@@ -89,8 +107,7 @@ def run_vessim_simulation(
             solar_df["adjusted_solar_power"] = solar_df["solar_power"]
 
         solar_signal = vs.HistoricalSignal(solar_df["adjusted_solar_power"])
-
-    else:  # "trend analysis"
+    else:
         solar_signal = solar_signal_interpolated
 
     # --- Battery Setup ---
@@ -100,14 +117,19 @@ def run_vessim_simulation(
         min_soc=battery_min_soc,
     )
 
-    # --- Add actors and run simulation ---
+    # Define paths for logging
+    carbon_output_file = output_file.replace(".csv", "_carbon.csv")
+
+    # Add actors and controllers — excluding carbon as an actor!
     environment.add_microgrid(
         actors=[
             vs.Actor(name="vidur_power_usage", signal=power_signal),
             vs.Actor(name="solar", signal=solar_signal),
-            vs.Actor(name="carbon_intensity", signal=carbon_intensity_signal),
         ],
-        controllers=[vs.Monitor(outfile=output_file)],
+        controllers=[
+            vs.Monitor(outfile=output_file),
+            CarbonLogger(signal=carbon_intensity_signal, outfile=carbon_output_file, step_size=step_size),
+        ],
         storage=battery,
         step_size=step_size,
     )
