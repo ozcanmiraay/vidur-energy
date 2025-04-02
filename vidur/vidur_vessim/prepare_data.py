@@ -45,7 +45,7 @@ def prepare_vessim_data(
         )
         # Weighted MFU
         aggregated["model_flop_utilization"] = vessim_ready_data.resample(agg_freq).apply(
-            lambda x: weighted_avg(x, "model_flop_utilization", "power_usage_watts")
+            lambda x: weighted_avg(x, "model_flop_utilization", "gpu_hours")
         )
 
     elif analysis_type == "total power analysis":
@@ -59,7 +59,7 @@ def prepare_vessim_data(
         )
         # Weighted MFU
         aggregated["model_flop_utilization"] = vessim_ready_data.resample(agg_freq).apply(
-            lambda x: weighted_avg(x, "model_flop_utilization", "power_usage_watts")
+            lambda x: weighted_avg(x, "model_flop_utilization", "gpu_hours")
         )
         # Add batch stage count
         aggregated["batch_stage_count"] = vessim_ready_data.resample(agg_freq)[
