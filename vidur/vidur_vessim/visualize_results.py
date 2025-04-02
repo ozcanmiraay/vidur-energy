@@ -74,7 +74,16 @@ def plot_vessim_results(
     if carbon_analysis and "carbon_intensity.p" not in df.columns:
         carbon_file = output_file.replace(".csv", "_carbon.csv")
         if os.path.exists(carbon_file):
+            # Read carbon data and make timezone consistent
             carbon_df = pd.read_csv(carbon_file, parse_dates=["time"], index_col="time")
+            
+            # Convert carbon_df index to match df's timezone
+            if df.index.tz is not None:
+                carbon_df.index = carbon_df.index.tz_localize("UTC").tz_convert(df.index.tz)
+            else:
+                # If main df is tz-naive, make carbon df naive too
+                carbon_df.index = carbon_df.index.tz_localize(None)
+                
             df = df.join(carbon_df.rename(columns={"carbon_intensity": "carbon_intensity.p"}), how="left")
             print("🟢 Carbon intensity data merged from separate file.")
         else:
