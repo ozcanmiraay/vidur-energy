@@ -18,7 +18,7 @@ class CarbonLogger(vs.Controller):
         df = pd.DataFrame(self.records)
         df.to_csv(self.outfile, index=False)
 
-# ✅ Utility to interpolate time-aligned signal
+# Utility to interpolate time-aligned signal
 def interpolate_signal(signal, location, step_size, sim_start_time, sim_end_time):
     original_index = pd.to_datetime(signal._actual[location][0])
     values = signal._actual[location][1]
@@ -29,6 +29,8 @@ def interpolate_signal(signal, location, step_size, sim_start_time, sim_end_time
     df_backup = df_interp.copy()
     df_interp = df_interp.interpolate(method="cubic")
     df_interp.loc[df_backup.notna().all(axis=1)] = df_backup.loc[df_backup.notna().all(axis=1)]
+
+    df_interp["value"] = df_interp["value"].clip(lower=0)
 
     signal = vs.HistoricalSignal(df_interp["value"])
     return signal, df_interp
