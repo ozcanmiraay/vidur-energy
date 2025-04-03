@@ -2,8 +2,16 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import seaborn as sns
 import numpy as np
 from datetime import timedelta
+
+import matplotlib
+matplotlib.use("Agg")  # Optional: for headless environments
+matplotlib.rcParams.update({
+    "font.family": "DejaVu Sans",
+    "axes.unicode_minus": False,  # optional: better minus signs
+})
 
 
 def calculate_carbon_emissions(df, step_size):
@@ -41,8 +49,8 @@ def calculate_carbon_emissions(df, step_size):
 def format_emissions(emissions_value):
     """Format emissions value in appropriate unit (kg or g)"""
     if abs(emissions_value) >= 1000:
-        return f"{emissions_value/1000:.2f} kgCO₂"
-    return f"{emissions_value:.1f} gCO₂"
+        return f"{emissions_value/1000:.2f} kgCO2"
+    return f"{emissions_value:.1f} gCO2"
 
 
 def plot_vessim_results(
@@ -192,80 +200,68 @@ def plot_vessim_results(
         plt.savefig(battery_plot_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-        # Add Battery Usage Distribution Plot
-        charging_mask = df["storage.charge_level"].diff() > 0
-        discharging_mask = df["storage.charge_level"].diff() < 0
-        idle_mask = df["storage.charge_level"].diff() == 0
-
-        charging_time = charging_mask.sum() * step_size / (len(df) * step_size) * 100
-        discharging_time = (
-            discharging_mask.sum() * step_size / (len(df) * step_size) * 100
+        # 🆕 Compute battery state
+        df["battery_state"] = df["storage.charge_level"].diff().apply(
+            lambda x: "charging" if x > 0 else ("discharging" if x < 0 else "idle")
         )
-        idle_time = idle_mask.sum() * step_size / (len(df) * step_size) * 100
+        state_colors = {"charging": "#3498db", "discharging": "#e67e22", "idle": "#95a5a6"}
 
-        # Only create pie chart if there's more than one state
-        non_zero_states = sum(
-            x > 1 for x in [charging_time, discharging_time, idle_time]
+        # 🆕 Plot A: Horizontal bar chart of usage time by state
+        battery_state_counts = df["battery_state"].value_counts(normalize=True) * 100
+        charging_time = battery_state_counts.get("charging", 0.0)
+        discharging_time = battery_state_counts.get("discharging", 0.0)
+        idle_time = battery_state_counts.get("idle", 0.0)
+
+        fig, ax3 = plt.subplots(figsize=(8, 2.5))
+        ax3.barh(
+            battery_state_counts.index.str.capitalize(),
+            battery_state_counts.values,
+            color=[state_colors[s] for s in battery_state_counts.index]
         )
-        if non_zero_states > 1:
-            # Create regular pie chart for multiple states
-            fig, ax3 = plt.subplots(figsize=(10, 8))
-            colors = ["#3498db", "#e67e22", "#2ecc71"]
-            labels = ["Charging", "Discharging", "Idle"]
-            sizes = [charging_time, discharging_time, idle_time]
-            wedges, texts, autotexts = ax3.pie(
-                sizes, labels=labels, colors=colors, autopct="%1.1f%%", startangle=90
-            )
-            ax3.axis("equal")
-            plt.title("Battery Usage Distribution", pad=20, y=1.08)
-            plt.setp(autotexts, size=10, weight="bold")
-            plt.setp(texts, size=12)
-        else:
-            # Create simplified visualization for single state
-            fig, ax3 = plt.subplots(figsize=(8, 4))
+        ax3.set_xlim(0, 100)
+        ax3.set_xlabel("Time Spent in State (%)")
+        ax3.set_title("Battery Usage Distribution")
+        for i, (state, val) in enumerate(zip(battery_state_counts.index, battery_state_counts.values)):
+            ax3.text(val + 1, i, f"{val:.1f}%", va="center", fontsize=10)
+        plt.tight_layout()
+        battery_bar_path = os.path.join(save_dir, "battery_usage_bar.png")
+        plt.savefig(battery_bar_path, bbox_inches="tight")
+        plt.close()
 
-            # Determine the active state (using a lower threshold)
-            if charging_time > 95:
-                state, color = "Charging", "#3498db"
-            elif discharging_time > 95:
-                state, color = "Discharging", "#e67e22"
-            elif idle_time > 95:
-                state, color = "Idle", "#2ecc71"
-            else:
-                # If no single state dominates, fall back to pie chart
-                fig, ax3 = plt.subplots(figsize=(10, 8))
-                colors = ["#3498db", "#e67e22", "#2ecc71"]
-                labels = ["Charging", "Discharging", "Idle"]
-                sizes = [charging_time, discharging_time, idle_time]
-                wedges, texts, autotexts = ax3.pie(
-                    sizes,
-                    labels=labels,
-                    colors=colors,
-                    autopct="%1.1f%%",
-                    startangle=90,
-                )
-                ax3.axis("equal")
-                plt.title("Battery Usage Distribution", pad=20, y=1.08)
-                plt.setp(autotexts, size=10, weight="bold")
-                plt.setp(texts, size=12)
-                return
+        # Set font to support CO2 subscript (avoids glyph warning)
+        plt.rcParams["font.family"] = "DejaVu Sans"
 
-            # Create the single-state visualization
-            ax3.text(
-                0.5,
-                0.5,
-                f"{state}\n{max(charging_time, discharging_time, idle_time):.1f}%",
-                ha="center",
-                va="center",
-                fontsize=20,
-                fontweight="bold",
-                color=color,
-            )
-            ax3.axis("off")
-            plt.title("Battery Usage Distribution", pad=20)
+        # 🆕 Plot B: Violin plot of battery SoC with better styling
+        df["hour"] = df.index.hour
+        df["soc_percent"] = df["storage.soc"] * 100
 
-        battery_usage_path = os.path.join(save_dir, "battery_usage_distribution.png")
-        plt.savefig(battery_usage_path, bbox_inches="tight")
+        # Set global Seaborn style
+        sns.set_theme(style="whitegrid", palette="colorblind")
+
+        fig, ax4 = plt.subplots(figsize=(12, 6))
+
+        sns.violinplot(
+            data=df,
+            x="hour",
+            y="soc_percent",
+            inner="box",
+            density_norm="width",  # replaces deprecated 'scale'
+            linewidth=1.2,
+            color="#81c784",  # Soft green
+            ax=ax4,
+        )
+
+        ax4.set_title("Battery State of Charge Distribution by Hour", fontsize=14, fontweight="bold")
+        ax4.set_xlabel("Hour of Day", fontsize=12)
+        ax4.set_ylabel("State of Charge (%)", fontsize=12)
+        ax4.grid(True, linestyle="--", alpha=0.3)
+
+        plt.xticks(fontsize=10)
+        plt.yticks(fontsize=10)
+        plt.tight_layout()
+
+        battery_violin_path = os.path.join(save_dir, "battery_soc_violin_plot.png")
+        plt.savefig(battery_violin_path, dpi=300, bbox_inches="tight")
         plt.close()
 
         # Add these metrics to the log file if logging is enabled
@@ -318,14 +314,14 @@ def plot_vessim_results(
                 )
 
                 log_file.write("\n📈 Carbon Intensity Metrics:\n")
-                log_file.write(f"• Average: {avg_intensity:.1f} gCO₂/kWh\n")
-                log_file.write(f"• Peak: {peak_intensity:.1f} gCO₂/kWh\n")
-                log_file.write(f"• Minimum: {min_intensity:.1f} gCO₂/kWh\n")
+                log_file.write(f"• Average: {avg_intensity:.1f} gCO2/kWh\n")
+                log_file.write(f"• Peak: {peak_intensity:.1f} gCO2/kWh\n")
+                log_file.write(f"• Minimum: {min_intensity:.1f} gCO2/kWh\n")
 
                 log_file.write("\n⏱️ Time Analysis:\n")
-                log_file.write(f"• Low Carbon Hours (<{low_carbon_threshold} gCO₂/kWh): {low_carbon_hours:.1f} hours\n")
+                log_file.write(f"• Low Carbon Hours (<{low_carbon_threshold} gCO2/kWh): {low_carbon_hours:.1f} hours\n")
                 log_file.write(
-                    f"• High Carbon Hours (> {high_carbon_threshold} gCO₂/kWh): {high_carbon_hours:.1f} hours\n"
+                    f"• High Carbon Hours (> {high_carbon_threshold} gCO2/kWh): {high_carbon_hours:.1f} hours\n"
                 )
                 log_file.write("=" * 50 + "\n")
 
@@ -373,7 +369,7 @@ def plot_vessim_results(
             alpha=0.1,
         )
 
-        ax1.set_ylabel(f"Cumulative CO₂ ({y_unit})", fontsize=12)
+        ax1.set_ylabel(f"Cumulative CO2 ({y_unit})", fontsize=12)
         ax1.legend(fontsize=10, loc="upper left", framealpha=0.9)
         ax1.grid(True, alpha=0.2)
 
@@ -390,7 +386,7 @@ def plot_vessim_results(
             color="#27AE60",
             linestyle="--",
             alpha=0.5,
-            label=f"Low Carbon Threshold ({low_carbon_threshold} gCO₂/kWh)",
+            label=f"Low Carbon Threshold ({low_carbon_threshold} gCO2/kWh)",
         )
 
         ax2.axhline(
@@ -398,10 +394,10 @@ def plot_vessim_results(
             color="#C0392B",
             linestyle="--",
             alpha=0.5,
-            label=f"High Carbon Threshold ({high_carbon_threshold} gCO₂/kWh)",
+            label=f"High Carbon Threshold ({high_carbon_threshold} gCO2/kWh)",
         )
 
-        ax2.set_ylabel("Grid Carbon Intensity\n(gCO₂/kWh)", fontsize=12)
+        ax2.set_ylabel("Grid Carbon Intensity\n(gCO2/kWh)", fontsize=12)
         ax2.set_xlabel(
             f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12
         )
