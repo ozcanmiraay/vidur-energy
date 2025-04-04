@@ -177,5 +177,5 @@ config_optimizer_output_tmpfs
 profiler_traces*
 experiments/profiling/get_profiled_data_from_trace.ipynb
 env_3
-.venv_vessim
+.venv_vessim/
 experiments-final/analysis/iframe_figures/
