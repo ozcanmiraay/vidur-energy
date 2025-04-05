@@ -151,8 +151,8 @@ def plot_vessim_results(
         label=f"Grid Power ({y_unit})"
     )
 
-    ax1.set_ylabel(f"Power ({y_unit})", fontsize=12)
-    ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12)
+    ax1.set_ylabel(f"Power ({y_unit})", fontsize=14)
+    ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14)
 
     ax1.legend(fontsize=10)
     ax1.grid(True, alpha=0.3)
@@ -166,102 +166,92 @@ def plot_vessim_results(
 
     ## Plot: Battery State of Charge (SOC)
     if "storage.soc" in df.columns:
-        fig, ax2 = plt.subplots(figsize=(12, 6))
-        fig.suptitle("Battery State of Charge", fontsize=16, y=0.95)
+        # Compute battery state and additional columns
+        df["battery_state"] = df["storage.charge_level"].diff().apply(
+            lambda x: "charging" if x > 0 else ("discharging" if x < 0 else "idle")
+        )
+        # Updated carbon-energy theme colors for the bar graph:
+        state_colors = {"charging": "#27ae60", "discharging": "#c0392b", "idle": "#7f8c8d"}
+        battery_state_counts = df["battery_state"].value_counts(normalize=True) * 100
 
-        ax2.plot(
+        # For logging (ensure these variables are defined)
+        charging_time = battery_state_counts.get("charging", 0.0)
+        discharging_time = battery_state_counts.get("discharging", 0.0)
+        idle_time = battery_state_counts.get("idle", 0.0)
+
+        # Compute additional columns for the violin plot
+        df["hour"] = df.index.hour
+        df["soc_percent"] = df["storage.soc"] * 100
+
+        # Create a figure with 3 vertical subplots
+        fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 18))
+        fig.suptitle("Battery Performance Overview", fontsize=20, y=0.98)
+
+        # 1. Battery SOC Plot (remains on top)
+        ax_soc = axes[0]
+        ax_soc.plot(
             df.index,
             df["storage.soc"] * 100,
             color="green",
             label="Battery SOC (%)",
             linewidth=2,
         )
-        ax2.axhline(
+        ax_soc.axhline(
             y=df["storage.min_soc"].iloc[0] * 100,
             color="r",
             linestyle="--",
             label="Min SoC",
             linewidth=1.5,
         )
-        ax2.fill_between(df.index, df["storage.soc"] * 100, alpha=0.2, color="green")
+        ax_soc.fill_between(df.index, df["storage.soc"] * 100, alpha=0.2, color="green")
+        ax_soc.set_title("Battery State of Charge", fontsize=16)  # Non-bold title
+        ax_soc.set_ylabel("State of Charge (%)", fontsize=14)
+        ax_soc.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14)
+        ax_soc.legend(fontsize=12)
+        ax_soc.grid(True, alpha=0.3)
+        format_time_axis(ax_soc, location_tz)
+        ax_soc.tick_params(axis="both", labelsize=12)
 
-        ax2.set_ylabel("State of Charge (%)", fontsize=12)
-        ax2.set_xlabel(
-            f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12
-        )
-
-        ax2.legend(fontsize=10)
-        ax2.grid(True, alpha=0.3)
-
-        format_time_axis(ax2, location_tz)
-        plt.tight_layout()
-
-        battery_plot_path = os.path.join(save_dir, "battery_soc_plot.png")
-        plt.savefig(battery_plot_path, dpi=300, bbox_inches="tight")
-        plt.close()
-
-        # 🆕 Compute battery state
-        df["battery_state"] = df["storage.charge_level"].diff().apply(
-            lambda x: "charging" if x > 0 else ("discharging" if x < 0 else "idle")
-        )
-        state_colors = {"charging": "#3498db", "discharging": "#e67e22", "idle": "#95a5a6"}
-
-        # 🆕 Plot A: Horizontal bar chart of usage time by state
-        battery_state_counts = df["battery_state"].value_counts(normalize=True) * 100
-        charging_time = battery_state_counts.get("charging", 0.0)
-        discharging_time = battery_state_counts.get("discharging", 0.0)
-        idle_time = battery_state_counts.get("idle", 0.0)
-
-        fig, ax3 = plt.subplots(figsize=(8, 2.5))
-        ax3.barh(
-            battery_state_counts.index.str.capitalize(),
-            battery_state_counts.values,
-            color=[state_colors[s] for s in battery_state_counts.index]
-        )
-        ax3.set_xlim(0, 100)
-        ax3.set_xlabel("Time Spent in State (%)")
-        ax3.set_title("Battery Usage Distribution")
-        for i, (state, val) in enumerate(zip(battery_state_counts.index, battery_state_counts.values)):
-            ax3.text(val + 1, i, f"{val:.1f}%", va="center", fontsize=10)
-        plt.tight_layout()
-        battery_bar_path = os.path.join(save_dir, "battery_usage_bar.png")
-        plt.savefig(battery_bar_path, bbox_inches="tight")
-        plt.close()
-
-        # Set font to support CO2 subscript (avoids glyph warning)
-        plt.rcParams["font.family"] = "DejaVu Sans"
-
-        # 🆕 Plot B: Violin plot of battery SoC with better styling
-        df["hour"] = df.index.hour
-        df["soc_percent"] = df["storage.soc"] * 100
-
-        # Set global Seaborn style
+        # 2. Battery SOC Violin Plot by Hour (moved to second position)
         sns.set_theme(style="whitegrid", palette="colorblind")
-
-        fig, ax4 = plt.subplots(figsize=(12, 6))
-
+        ax_violin = axes[1]
         sns.violinplot(
             data=df,
             x="hour",
             y="soc_percent",
             inner="box",
-            density_norm="width",  # replaces deprecated 'scale'
+            density_norm="width",
             linewidth=1.2,
-            color="#81c784",  # Soft green
-            ax=ax4,
+            color="#81c784",
+            ax=ax_violin,
         )
+        ax_violin.set_title("Battery SOC Distribution by Hour", fontsize=16)  # Non-bold
+        ax_violin.set_xlabel("Hour of Day", fontsize=14)
+        ax_violin.set_ylabel("State of Charge (%)", fontsize=14)
+        ax_violin.tick_params(axis="both", labelsize=12)
+        ax_violin.grid(True, linestyle="--", alpha=0.3)
 
-        ax4.set_title("Battery State of Charge Distribution by Hour", fontsize=14, fontweight="bold")
-        ax4.set_xlabel("Hour of Day", fontsize=12)
-        ax4.set_ylabel("State of Charge (%)", fontsize=12)
-        ax4.grid(True, linestyle="--", alpha=0.3)
+        # 3. Battery Usage Distribution (Horizontal Bar Chart) moved to the bottom
+        ax_bar = axes[2]
+        ax_bar.barh(
+            battery_state_counts.index.str.capitalize(),
+            battery_state_counts.values,
+            color=[state_colors[s] for s in battery_state_counts.index],
+        )
+        ax_bar.set_xlim(0, 100)
+        ax_bar.set_title("Battery Usage Distribution", fontsize=16)  # Non-bold
+        ax_bar.set_xlabel("Time Spent in State (%)", fontsize=14)
+        # Annotate bars with percentages
+        for i, (state, val) in enumerate(zip(battery_state_counts.index, battery_state_counts.values)):
+            ax_bar.text(val + 1, i, f"{val:.1f}%", va="center", fontsize=14)
+        ax_bar.tick_params(axis="both", labelsize=12)
+        ax_bar.grid(True, alpha=0.3)
 
-        plt.xticks(fontsize=10)
-        plt.yticks(fontsize=10)
-        plt.tight_layout()
+        # Adjust layout to prevent overlap with the overall title
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-        battery_violin_path = os.path.join(save_dir, "battery_soc_violin_plot.png")
-        plt.savefig(battery_violin_path, dpi=300, bbox_inches="tight")
+        battery_combined_path = os.path.join(save_dir, "battery_combined_plots.png")
+        plt.savefig(battery_combined_path, dpi=300, bbox_inches="tight")
         plt.close()
 
         # Add these metrics to the log file if logging is enabled
@@ -369,7 +359,7 @@ def plot_vessim_results(
             alpha=0.1,
         )
 
-        ax1.set_ylabel(f"Cumulative CO2 ({y_unit})", fontsize=12)
+        ax1.set_ylabel(f"Cumulative CO2 ({y_unit})", fontsize=14)
         ax1.legend(fontsize=10, loc="upper left", framealpha=0.9)
         ax1.grid(True, alpha=0.2)
 
@@ -397,9 +387,9 @@ def plot_vessim_results(
             label=f"High Carbon Threshold ({high_carbon_threshold} gCO2/kWh)",
         )
 
-        ax2.set_ylabel("Grid Carbon Intensity\n(gCO2/kWh)", fontsize=12)
+        ax2.set_ylabel("Grid Carbon Intensity\n(gCO2/kWh)", fontsize=14)
         ax2.set_xlabel(
-            f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12
+            f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14
         )
         ax2.legend(fontsize=10, loc="upper right", framealpha=0.9)
         ax2.grid(True, alpha=0.2)
