@@ -21,7 +21,7 @@ Vidur-Energy retains all core functionalities of Vidur while adding **new energy
 
 ✅ **Power Tracking**: Extracts **GPU power draw** at different utilization levels.  
 ✅ **Energy Consumption Estimation**: Tracks **energy usage** across inference workloads.  
-✅ **Preliminary Carbon Footprint Estimation**: Uses **grid carbon intensity data** to estimate **inference-related emissions**.  
+✅ **Carbon Footprint Estimation**: Uses **grid carbon intensity data** to estimate **inference-related emissions**.  
 ✅ **Modular Energy Tracking**: A more **configurable** and **extensible** approach to tracking energy metrics.  
 ✅ **Full Compatibility with Vidur**: All existing **simulation capabilities** remain **unchanged**.  
 
