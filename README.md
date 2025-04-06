@@ -427,44 +427,77 @@ This file includes:
 
 </div>
 
-## 🔄 **6. Formatting Code**  
 
-To format the code:  
-```sh
+## 🔁 **6. Real-Time Co-Simulation (WIP: `vidur-vessim-realtime` Branch)**
+
+We are actively working on enabling **real-time co-simulation** between Vidur and Vessim in the `vidur-vessim-realtime` branch.
+
+Unlike earlier pipelines that treat Vidur’s power output as a **fixed input** to Vessim, this branch explores a **bidirectional feedback loop** where:
+
+- ⚙️ **Vidur dynamically adapts inference parameters** (e.g., GPU allocation, batch size, throughput) in response to evolving energy availability and carbon intensity from Vessim.
+- ⚡ **Vessim adjusts energy supply decisions** (e.g., switching between grid and solar, scheduling based on battery availability) based on Vidur’s workload.
+
+This **tight integration** brings us closer to realistic datacenter scheduling and enables:
+- ♻️ Adaptive inference during low-carbon windows  
+- 🌍 Geo-aware routing of inference tasks to greener datacenters  
+- ⏱️ Real-time control over system behavior in energy-constrained settings  
+
+#### 🧪 Active Development Areas:
+- Time-synchronized simulation clocks  
+- Real-time state sharing across simulators  
+- A flexible interface for modifying inference & energy parameters mid-run  
+
+> 📢 **This work is in progress and open to contributions!**  
+If you're interested in shaping the future of carbon-aware AI infrastructure, we’d love to collaborate.
+
+➡️ Clone the branch:
+```bash
+git checkout -b vidur-vessim-realtime origin/vidur-vessim-realtime
+```
+
+Feel free to open issues, share ideas, or submit a pull request!
+
+---
+
+## 🧹 **7. Formatting Code**
+
+To automatically format all code using standard style guidelines:
+
+```bash
 make format
 ```
 
 ---
 
-## 🤝 **7. Contributing**  
+## 🤝 **8. Contributing**
 
-We welcome contributions to extend **Vidur-Energy**! 🎉  
+We welcome contributions of all kinds — from code and documentation to ideas and testing!
 
-🔹 **Fork the repository**  
-🔹 **Create a new branch**  
-🔹 **Submit a pull request**  
+- 🔹 Fork the repository  
+- 🔹 Create a new feature branch  
+- 🔹 Submit a pull request for review  
 
----
-
-## 🙌 **8. Acknowledgments**  
-
-### 🌿 **Built on Microsoft Research’s Vidur**  
-This project builds on **Vidur**, originally developed by Microsoft Research. Our modifications enhance its sustainability features while preserving **high-fidelity inference simulation capabilities**.  
-
-For more details, visit the **[Vidur paper (MLSys'24)](https://arxiv.org/abs/2405.05465).**  
-
-### ⚡ **Powered by Vessim**  
-Vidur-Energy **integrates Vessim**, a testbed for **carbon-aware applications and systems**, developed by TU Berlin’s **Distributed and Operating Systems Group**.  
-
-If you use Vessim in your research, please cite:  
-📝 **Wiesner et al. (2024). Vessim: A Testbed for Carbon-Aware Applications and Systems.**  
-
-📄 **[Read more about Vessim](https://github.com/dos-group/vessim)**  
+Let us know if you'd like to be involved in real-time simulation, emissions modeling, or future experiment pipelines.
 
 ---
 
-## 📜 **9. License**  
+## 🙌 **9. Acknowledgments**
 
-Vidur-Energy follows the **original Vidur license**. Please review [`LICENSE`](./LICENSE) for details.  
+### 🌿 Built on Microsoft Research’s Vidur  
+This project builds upon [**Vidur**](https://github.com/microsoft/vidur), a high-fidelity simulator of LLM inference. Our extensions aim to integrate sustainability as a **first-class metric** in inference workloads.
+
+For more details, check out the **[Vidur paper (MLSys 2024)](https://arxiv.org/abs/2405.05465)**.
+
+### ⚡ Powered by Vessim  
+We leverage [**Vessim**](https://github.com/dos-group/vessim), a simulation framework from TU Berlin for modeling carbon-aware computing environments.
+
+If Vessim helps your research, please cite:
+> Wiesner et al. (2024). *Vessim: A Testbed for Carbon-Aware Applications and Systems.*
+
+---
+
+## 📜 **10. License**
+
+This project follows the original **Vidur license**. See [`LICENSE`](./LICENSE) for details.
 
 🚀 **Happy Sustainable AI Computing!** 🌱
