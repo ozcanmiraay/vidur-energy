@@ -27,6 +27,24 @@ Vidur-Energy retains all core functionalities of Vidur while adding **new energy
 
 ---
 
+## 📥 **Cloning the Repo and Fetching Branches**
+
+To access the full codebase including custom extensions:
+
+```bash
+# Clone the repo and navigate into it
+git clone https://github.com/yourusername/vidur-energy.git
+cd vidur-energy
+
+# Fetch all remote branches
+git fetch --all
+
+# Create local branches to track remotes
+git checkout -b energy-tracking origin/energy-tracking
+git checkout -b vidur-vessim-basic origin/vidur-vessim-basic
+```
+---
+
 ## 🔧 **1. Setup**  
 
 ### 🐍 **Using `mamba` (Recommended)**  
@@ -279,16 +297,16 @@ Modify directly in the experiment script or use YAML configs in `configs/`.
 
 The `vidur-vessim-basic` branch enables **carbon-aware inference simulations** by integrating the **Vidur LLM inference simulator** with **Vessim**, a testbed for modeling solar generation, battery dynamics, and regional carbon emissions.
 
-This co-simulation pipeline allows you to:
-- 🔆 Simulate solar energy generation across locations
-- 🔋 Track battery charging/discharging cycles and storage capacity
-- 🌍 Evaluate the **carbon footprint** of your LLM inference workload under varying energy profiles and grid intensities
+This co-simulation pipeline lets you:
+- 🔆 Simulate solar energy generation across locations  
+- 🔋 Track battery charging, discharging, and SoC over time  
+- 🌍 Evaluate the **carbon footprint** of LLM inference under different grid conditions  
 
 ---
 
 ### ⚙️ Environment Setup
 
-Due to dependency mismatches (notably `numpy`), we recommend creating a **separate virtual environment** for running Vessim integration.
+Due to dependency mismatches (notably `numpy`), we recommend creating a **separate virtual environment** for this branch:
 
 ```bash
 # Create and activate a new environment
@@ -299,17 +317,17 @@ source .venv-vessim/bin/activate
 pip install -r requirements.txt
 ```
 
-Run your **Vidur simulation first** (as shown in previous sections), then use the path to the result folder in the next step.
+Make sure to run your **Vidur simulation first** and then provide the path to the simulation output directory when running the co-simulation.
 
 ---
 
-### 🌞 Running Vidur–Vessim Co-Simulation
+### 🌞 Running the Co-Simulation
 
-Example command:
+You can launch the full Vidur–Vessim co-simulation pipeline using:
 
 ```bash
 python -m vidur.vidur_vessim.cli \
---vidur-sim-dir simulator_output/vidur-vessim-example-capstone \
+--vidur-sim-dir simulator_output/vidur-vessim-example \
 --location "San Francisco" \
 --agg-freq 1min \
 --analysis-type "trend analysis" \
@@ -325,74 +343,89 @@ python -m vidur.vidur_vessim.cli \
 --interpolate-datasets
 ```
 
+This command processes your Vidur results, applies location-based solar and carbon data, and simulates how battery and emissions behave over time.
+
 ---
 
-### 📘 CLI Argument Reference
+### 📘 View All CLI Options
 
-| Argument | Description |
-|----------|-------------|
-| `--vidur-sim-dir` | Path to Vidur’s simulation output directory (must contain power data). |
-| `--location` | Location used for time zone conversion and solar irradiance estimation. |
-| `--agg-freq` | Aggregation frequency for simulation data (e.g., `1min`). |
-| `--analysis-type` | Type of analysis: `"trend analysis"` for time series or `"total power analysis"`. |
-| `--step-size` | Simulation time step in seconds (e.g., `60` for 1-minute resolution). |
-| `--solar-scale-factor` | Size of the solar panel system in watts (e.g., `600` for a 600W array). |
-| `--battery-capacity` | Battery storage capacity in watt-hours (e.g., `100` = 0.1 kWh). |
-| `--battery-initial-soc` | Initial battery state of charge (0.0 to 1.0). |
-| `--battery-min-soc` | Minimum state of charge to preserve (battery cannot discharge below this). |
-| `--log-metrics` | Enables writing a detailed `simulation_metrics.txt` file summarizing power, emissions, and battery usage. |
-| `--carbon-analysis` | Enables carbon footprint calculations using dynamic carbon intensity data. |
-| `--low-carbon-threshold` | Threshold (in gCO₂/kWh) below which energy is considered "green". |
-| `--high-carbon-threshold` | Threshold above which energy is considered "dirty". |
-| `--interpolate-datasets` | Enables interpolation to align power, solar, and carbon intensity data on common timestamps. |
+To explore all configurable parameters, run:
+
+```bash
+python -m vidur.vidur_vessim.cli -h
+```
+
+---
+
+### 🧾 CLI Argument Reference
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--vidur-sim-dir` | **(Required)** Path to Vidur’s simulation output (must contain MFU power data) | — |
+| `--location` | Location for time zone and solar irradiance | `"San Francisco"` |
+| `--agg-freq` | Aggregation frequency (e.g. `1min`, `5min`) | `"1min"` |
+| `--analysis-type` | Type of simulation analysis (`trend analysis` or `total power analysis`) | `"trend analysis"` |
+| `--step-size` | Simulation time resolution (in seconds) | `60` |
+| `--solar-scale-factor` | Installed solar capacity in watts | `5000` |
+| `--battery-capacity` | Battery size in watt-hours | `5000` |
+| `--battery-initial-soc` | Initial battery state of charge (0.0 to 1.0) | `0.4` |
+| `--battery-min-soc` | Minimum allowable SoC before cutoff | `0.3` |
+| `--log-metrics` | Enables summary logging to `simulation_metrics.txt` | _(flag)_ |
+| `--carbon-analysis` | Enables emissions computation | _(flag)_ |
+| `--low-carbon-threshold` | gCO₂/kWh value considered "green" | `100` |
+| `--high-carbon-threshold` | gCO₂/kWh value considered "dirty" | `200` |
+| `--interpolate-datasets` | Aligns time series via cubic interpolation | _(flag)_ |
+
+📍 **Allowed values for `--location`:**
+```
+Berlin, Cape Town, Hong Kong, Lagos, Mexico City,
+Mumbai, San Francisco, Stockholm, Sydney, São Paulo
+```
 
 ---
 
 ### 📊 Outputs & Visualizations
 
-After execution, results are saved under a directory called `vessim_analysis/`. You’ll find:
+Results are saved in the `vessim_analysis/` subfolder inside your simulation output directory.
 
-### 📊 Vessim Co-Simulation Visualizations
+All key statistics are logged to:
+```bash
+vessim_analysis/simulation_metrics.txt
+```
+
+This file includes:
+- ✅ Total energy demand  
+- ✅ Grid vs. solar energy share  
+- ✅ Carbon intensity over time  
+- ✅ Battery SoC distribution and cycling behavior  
+
+---
+
+### 📈 Vessim Co-Simulation Visuals
 
 <div align="center">
 
 <table>
   <tr>
-    <td align="center" style="padding: 10px; vertical-align: top;">
+    <td align="center" style="padding: 12px; vertical-align: top;">
       <strong>🔄 Power Flow Analysis</strong><br>
       <img src="./assets/power_flow_analysis.png" width="320"><br>
-      <p style="margin-top: 5px;">Visualizes how solar, grid, and model power usage intersect.</p>
+      <p style="margin-top: 8px; max-width: 280px;">Visualizes how solar, grid, and model power usage intersect.</p>
     </td>
-    <td align="center" style="padding: 10px; vertical-align: top;">
-      <strong>🔋 Battery SOC Over Time</strong><br>
+    <td align="center" style="padding: 12px; vertical-align: top;">
+      <strong>🔋 Battery Performance Overview</strong><br>
       <img src="./assets/battery_soc_plot.png" width="320"><br>
-      <p style="margin-top: 5px;">Tracks battery charge levels and threshold efficiency.</p>
+      <p style="margin-top: 8px; max-width: 280px;">Shows SoC over time, hourly distribution, and usage state breakdown.</p>
     </td>
-  </tr>
-  <tr>
-    <td align="center" style="padding: 10px; vertical-align: top;">
+    <td align="center" style="padding: 12px; vertical-align: top;">
       <strong>🌍 Carbon Emissions Breakdown</strong><br>
       <img src="./assets/carbon_emissions_plot.png" width="320"><br>
-      <p style="margin-top: 5px;">Gross emissions, renewable offset, and net footprint.</p>
-    </td>
-    <td align="center" style="padding: 10px; vertical-align: top;">
-      <strong>📉 Battery Usage Distribution</strong><br>
-      <img src="./assets/battery_usage_distribution.png" width="320"><br>
-      <p style="margin-top: 5px;">Time spent charging, discharging, or idle.</p>
+      <p style="margin-top: 8px; max-width: 280px;">Gross emissions, renewable offset, and net carbon footprint.</p>
     </td>
   </tr>
 </table>
 
 </div>
-
-- **Simulation Metrics Summary**  
-  All key statistics are logged to `vessim_analysis/simulation_metrics.txt`, including:
-  - Total energy demand
-  - Grid vs. solar energy share
-  - Carbon intensity over time
-  - Battery SoC distribution and cycling behavior
-
----
 
 ## 🔄 **6. Formatting Code**  
 
