@@ -225,10 +225,7 @@ python -m vidur.vidur_vessim.cli \
   ![Power Flow Analysis](./assets/power_flow_analysis.png)  
 
 - 🔋 **Battery SOC**  
-  ![Battery SOC](./assets/battery_soc_plot.png)  
-
-- 📉 **Battery Usage Distribution**  
-  ![Battery Usage](./assets/battery_usage_distribution.png)  
+  ![Battery SOC](./assets/battery_soc_plot.png) 
 
 - 🌍 **Carbon Emissions Analysis**  
   ![Carbon Emissions](./assets/carbon_emissions_plot.png)  
