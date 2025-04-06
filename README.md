@@ -1,4 +1,4 @@
-# 📗 **Vidur-Energy: Extending Vidur for Power and Energy Tracking in LLM Inference**
+# 📗 **Vidur-Energy: Extending Vidur for Power and Energy Tracking**
 
 📄 _This repository accompanies the paper:_  
 
@@ -409,18 +409,18 @@ This file includes:
   <tr>
     <td align="center" style="padding: 12px; vertical-align: top;">
       <strong>🔄 Power Flow Analysis</strong><br>
-      <img src="./assets/power_flow_analysis.png" width="320"><br>
-      <p style="margin-top: 8px; max-width: 280px;">Visualizes how solar, grid, and model power usage intersect.</p>
+      <img src="./assets/power_flow_analysis.png" height="200"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Visualizes how solar, grid, and model power usage intersect.</p>
     </td>
     <td align="center" style="padding: 12px; vertical-align: top;">
       <strong>🔋 Battery Performance Overview</strong><br>
-      <img src="./assets/battery_soc_plot.png" width="320"><br>
-      <p style="margin-top: 8px; max-width: 280px;">Shows SoC over time, hourly distribution, and usage state breakdown.</p>
+      <img src="./assets/battery_soc_plot.png" height="200" style="object-fit: contain;"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Shows SoC over time, hourly distribution, and usage state breakdown.</p>
     </td>
     <td align="center" style="padding: 12px; vertical-align: top;">
       <strong>🌍 Carbon Emissions Breakdown</strong><br>
-      <img src="./assets/carbon_emissions_plot.png" width="320"><br>
-      <p style="margin-top: 8px; max-width: 280px;">Gross emissions, renewable offset, and net carbon footprint.</p>
+      <img src="./assets/carbon_emissions_plot.png" height="200"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Gross emissions, renewable offset, and net carbon footprint.</p>
     </td>
   </tr>
 </table>
