@@ -2,8 +2,8 @@
 
 📄 _This repository accompanies the paper:_  
 
-**“Towards Quantifying the Energy Consumption and Carbon Emissions of LLM Inference: A Simulation-Based Approach”**  
-_Miray Özcan, Minerva University, 2025_  
+**“Quantifying the Energy Consumption and Carbon Emissions of LLM Inference via Simulations”**  
+_Miray Özcan, Minerva University, California, USA | Philipp Wiesner, Philipp Weiß, Odej Kao, Technische Universität Berlin, Germany_  
 
 Vidur-Energy is an **enhanced version** of [Vidur](https://github.com/microsoft/vidur), a high-fidelity **LLM inference system simulator**, with **additional energy tracking capabilities**. This extension introduces:
 
