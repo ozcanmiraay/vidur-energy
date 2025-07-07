@@ -1,102 +1,117 @@
-# Vidur: LLM Inference System Simulator
+# 📗 **Vidur-Energy: Extending Vidur for Power and Energy Tracking**
 
-Vidur is a high-fidelity and extensible LLM inference system simulator. It can help you with:
+📄 _This repository accompanies the paper:_  
 
-1. Study the system performance of models under different workloads and configurations.
+**“Quantifying the Energy Consumption and Carbon Emissions of LLM Inference via Simulations”**  
+_Miray Özcan @ Minerva University, California, USA | Philipp Wiesner, Philipp Weiß, Odej Kao @ Technische Universität Berlin, Germany_  
 
-    | TTFT | TPOT | Request E2E Time | Batch Size |
-    | --- | --- | --- | --- |
-    | ![TTFT](./assets/prefill_e2e_time.png) | ![TPOT](./assets/decode_time_execution_plus_preemption_normalized.png) | ![Request E2E Time](./assets/request_e2e_time.png) | ![Batch Size](./assets/batch_size.png) |
+Vidur-Energy is an **enhanced version** of [Vidur](https://github.com/microsoft/vidur), a high-fidelity **LLM inference system simulator**, with **additional energy tracking capabilities**. This extension introduces:
 
-    *`Llama-3-8B` running the [AzureLLMInferenceTrace2023_conv](https://github.com/Azure/AzurePublicDataset/blob/master/data/AzureLLMInferenceTrace_conv.csv) trace on single `A100 80GB` at 6.45 QPS*
+⚡ **Power draw monitoring**  
+🔋 **Energy consumption analysis**  
+🌍 **Carbon emission estimation**
 
-1. Capacity planning and finding the best deployment configuration for your LLM deployments.
-   ![Config Search](./assets/llama70b_Chat1M_ttft_tbt_90_99_2.0_0.2.jpeg)
-*Capacity per dollar for different deployment configurations vs TTFT-P90 and TBT-P99 for LLaMA2-70B.*
-1. Quickly test new research ideas like new scheduling algorithms, optimizations like speculative decoding, etc.
+These features enable **more sustainable AI inference optimizations**. 🌱🌎
 
-... all without access to GPUs except for a quick initial profiling phase 🎉. We highly recommend checking out our [MLSys'24 paper](https://arxiv.org/abs/2405.05465) and [talk](https://mlsys.org/virtual/2024/poster/2667) for more details.
+---
 
+## 🌟 **Features**  
 
-## Supported Models
+Vidur-Energy retains all core functionalities of Vidur while adding **new energy-aware insights**, such as:  
 
-__Instructions on adding a new model to existing or new SKUs can be found [here](docs/profiling.md)__.
+✅ **Power Tracking**: Extracts **GPU power draw** at different utilization levels.  
+✅ **Energy Consumption Estimation**: Tracks **energy usage** across inference workloads.  
+✅ **Carbon Footprint Estimation**: Uses **grid carbon intensity data** to estimate **inference-related emissions**.  
+✅ **Modular Energy Tracking**: A more **configurable** and **extensible** approach to tracking energy metrics.  
+✅ **Full Compatibility with Vidur**: All existing **simulation capabilities** remain **unchanged**.  
 
-| Model / Device | A100 80GB DGX | H100 DGX | 4xA100 80GB Pairwise NVLink Node | 8xA40 Pairwise NVLink Node |
-| --- | --- | --- | --- | --- |
-| `meta-llama/Meta-Llama-3-8B` | ✅ | ❌ | ✅ | ❌ |
-| `meta-llama/Meta-Llama-3-70B` | ✅ | ❌ | ✅ | ❌ |
-| `meta-llama/Llama-2-7b-hf` | ✅ | ✅ | ✅ | ✅ |
-| `codellama/CodeLlama-34b-Instruct-hf"` | ✅ | ✅ | ✅ | ✅ |
-| `meta-llama/Llama-2-70b-hf` | ✅ | ✅ | ✅ | ✅ |
-| `internlm/internlm-20b` | ✅ | ✅ | ✅ | ✅ |
-| `Qwen/Qwen-72B` | ✅ | ✅ | ✅ | ✅ |
+---
 
-* All models support a maximum context length of 4k except `Llama3-8B` and `Llama3-70B` which support 16k context length by passing additional CLI params:
+## 📥 **Cloning the Repo and Fetching Branches**
 
-    ```text
-    --random_forrest_execution_time_predictor_config_prediction_max_prefill_chunk_size 16384 \
-    --random_forrest_execution_time_predictor_config_prediction_max_batch_size 512 \
-    --random_forrest_execution_time_predictor_config_prediction_max_tokens_per_request 16384
-    ```
+To access the full codebase including custom extensions:
 
-* Pipeline parallelism is supported for all models. The PP dimension should divide the number of layers in the model.
-* In DGX nodes, there are 8 GPUs, fully connected via NVLink. So TP1, TP2, TP4 and TP8 are supported.
-* In 4x pairwise NVLink nodes, there are 4 GPUs, so TP1, TP2 and TP4 are supported. TP4 here is less performant than TP4 in DGX nodes because (GPU1, GPU2) are connected via NVLink and (GPU3, GPU4) are connected via NVLink. but between these layers, the interconnect is slower.
-* You can use any combination of TP and PP. For example, you can run LLaMA2-70B on TP2-PP2 on a 4xA100 80GB Pairwise NVLink Node.
+```bash
+# Clone the repo and navigate into it
+git clone https://github.com/yourusername/vidur-energy.git
+cd vidur-energy
 
-## Setup
+# Fetch all remote branches
+git fetch --all
 
-### Using `mamba`
+# Create local branches to track remotes
+git checkout -b energy-tracking origin/energy-tracking
+git checkout -b vidur-vessim-basic origin/vidur-vessim-basic
+```
+---
 
-To run the simulator, create a mamba environment with the given dependency file.
+## 🔧 **1. Setup**  
 
+### 🐍 **Using `mamba` (Recommended)**  
 ```sh
 mamba env create -p ./env -f ./environment.yml
 mamba env update -f environment-dev.yml
 ```
 
-### Using `venv`
+### 🐍 **Using `venv`**  
+```sh
+python3.10 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
 
-1. Ensure that you have Python 3.10 installed on your system. Refer <https://www.bitecode.dev/p/installing-python-the-bare-minimum>
-2. `cd` into the repository root
-3. Create a virtual environment using `venv` module using `python3.10 -m venv .venv`
-4. Activate the virtual environment using `source .venv/bin/activate`
-5. Install the dependencies using `python -m pip install -r requirements.txt`
-6. Run `deactivate` to deactivate the virtual environment
-
-### Using `conda` (Least recommended)
-
-To run the simulator, create a conda environment with the given dependency file.
-
+### 🐍 **Using `conda` (Least Recommended)**  
 ```sh
 conda env create -p ./env -f ./environment.yml
 conda env update -f environment-dev.yml
 ```
 
-### Setting up wandb (Optional)
+---
 
-First, setup your account on `https://<your-org>.wandb.io/` or public wandb, obtain the api key and then run the following command,
+## 🚀 **2. Running the Simulator**
 
-```sh
-wandb login --host https://<your-org>.wandb.io
-```
+You can run Vidur in standalone mode for LLM inference simulations with or without energy tracking.
 
-To opt out of wandb, pick any one of the following methods:
+> ℹ️ **Need help with parameters?**  
+> Run the following to view all configurable flags and their descriptions:  
+> ```sh
+> python -m vidur.main -h
+> ```
 
-1. `export WANDB_MODE=disabled` in your shell or add this in `~/.zshrc` or `~/.bashrc`. Remember to reload using `source ~/.zshrc`.
-2. Set `wandb_project` and `wandb_group` as `""` in `vidur/config/default.yml`. Also, remove these CLI params from the shell command with which the simulator is invoked.
+---
 
-## Running the simulator
+### 🧪 **Running a Standard Simulation**
 
-To run the simulator, execute the following command from the repository root,
-
+To execute a standard simulation (**without energy tracking**):  
 ```sh
 python -m vidur.main
 ```
 
-or a big example with all the parameters,
+---
 
+### 🔁 **Example: Synthetic Request Generator**
+```sh
+python -m vidur.main  \
+--replica_config_device a100 \
+--replica_config_model_name meta-llama/Llama-2-7b-hf \
+--cluster_config_num_replicas 1 \
+--replica_config_tensor_parallel_size 1 \
+--replica_config_num_pipeline_stages 1 \
+--request_generator_config_type synthetic \
+--synthetic_request_generator_config_num_requests 400000 \
+--length_generator_config_type zipf \
+--interval_generator_config_type poisson \
+--poisson_request_interval_generator_config_qps 20 \
+--replica_scheduler_config_type vllm \
+--vllm_scheduler_config_batch_size_cap 128 \
+--vllm_scheduler_config_max_tokens_in_batch 4096 \
+--metrics_config_store_utilization_metrics \
+--execution_time_predictor_config_type random_forrest
+```
+
+---
+
+### 📂 **Example: Trace-Based Simulation**
 ```sh
 python -m vidur.main  \
 --replica_config_device a100 \
@@ -119,45 +134,370 @@ python -m vidur.main  \
 --random_forrest_execution_time_predictor_config_prediction_max_tokens_per_request 16384
 ```
 
-or to get information on all parameters,
+---
+
+## 🌿 **3. Energy Tracking in `energy-tracking` Branch**  
+
+The `energy-tracking` branch introduces **power and energy-related analytics** within Vidur. This branch features:  
+
+📊 **Energy-aware statistics extraction**  
+📉 **A reporting module for power consumption, energy efficiency, and carbon footprint**  
+
+### 🔄 **Changes in This Branch**  
+- **New Scripts**:  
+  - `stats_extractor_energy.py`: Extracts **power, energy, and carbon footprint** metrics.  
+  - `stats_extractor_energy_reporting/`: Directory for **configurations and reporting tools**.  
+
+- **Configuration Additions**:  
+  - `config/gpu_configs.py`: Defines **power profiles** for different GPU models.  
+  - `config/region_configs.py`: Provides **grid parameters** like carbon intensity, PUE, and electricity cost.  
+
+### 🌱 **Running Energy Tracking & Analysis**  
+
+#### 📊 **Extracting Energy Metrics from a Simulation**  
+Let's assume the name of our simulation result subdirectory is 'vidur-results-demo.'
+```sh
+python -m vidur.config_optimizer.analyzer.stats_extractor_energy \
+--sim-results-dir simulator_output/vidur-results-demo
+```
+📁 This generates an **`analysis/` subdirectory** containing energy usage statistics.  
+
+#### 📄 **Generating Energy Reports**  
+```sh
+python -m vidur.config_optimizer.analyzer.stats_extractor_energy_reporting \
+--sim-results-dir simulator_output/vidur-results-demo  \
+--region california
+```
+This generates **visual reports** on:  
+✅ **Power and energy usage over time**  
+✅ **Carbon emissions impact per region**  
+✅ **Model parallelism efficiency vs energy consumption**  
+✅ **Comparative energy costs across regions**  
+
+---
+
+### 📊 Energy Consumption Reports
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" style="padding: 10px;">
+      <strong>🌍 Sustainable AI Performance Metrics</strong><br>
+      <img src="./assets/energy-report-1.png" width="250" height="170">
+    </td>
+    <td align="center" style="padding: 10px;">
+      <strong>📉 Energy Over Time & Efficiency</strong><br>
+      <img src="./assets/energy-report-2.png" width="320" height="170">
+    </td>
+    <td align="center" style="padding: 10px;">
+      <strong>🌍 Regional Emissions & Cost</strong><br>
+      <img src="./assets/energy-report-3.png" width="240" height="170">
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
+## 🧪 **4. Replicating the Experiments in `experiments` Branch**  
+
+This project includes a full set of scripted experiments that were used to generate the results in the accompanying paper:
+
+📄 _“Towards Quantifying the Energy Consumption and Carbon Emissions of LLM Inference: A Simulation-Based Approach”_
+
+These experiments evaluate:
+- ⚡ **Power consumption** under different inference workloads
+- ⏳ **Execution time** across varying request patterns and system configs
+- 🌱 **Energy efficiency** tradeoffs for different models and deployment settings
+
+---
+
+### 📂 **Directory Structure**
+
+All relevant files are in the `experiments-final/` directory, organized as follows:
+
+- `experiments-final/scripts/`  
+  Contains **fully executable Python scripts** for each experiment.  
+  Example:  
+  - `exp1-numrequests-power-energy.py`: Evaluates how increasing the number of requests impacts power usage and energy draw.  
+  - `exp3-prefill-decode-ratio.py`: Analyzes tradeoffs across prefill/decode token ratio variations.  
+
+- `experiments-final/analysis/`  
+  Contains **Jupyter Notebooks** for post-processing, plotting, and deeper analysis.  
+  Each notebook corresponds to an experiment script and renders visuals similar to those in the paper.  
+  Example:  
+  - `exp1-numrequests-power-energy.ipynb`: Plots power and efficiency results from the script above.
+
+---
+
+### 🔬 **How to Run the Experiments**
+
+> 🛠️ Before running, ensure you have completed setup and are in the correct environment.
+
+#### Step 1: Run a predefined experiment script  
+Each script generates raw simulation outputs + energy tracking metadata.
 
 ```sh
-python -m vidur.main -h
+python experiments-final/scripts/exp1-numrequests-power-energy.py
 ```
 
-## Simulator Output
+You can repeat this with other scripts in the same folder.
 
-* The metrics will be logged to wandb directly and a copy will be stored in the `simulator_output/<TIMESTAMP>` directory. __A description of all the logged metrics can be found [here](docs/metrics.md).__
-* Vidur exports chrome traces of each simulation. The trace can be found in the `simulator_output` directory. The trace can be opened by navigating to `chrome://tracing/` or `edge://tracing/` and loading the trace.
-
-    ![Chrome Trace](./assets/chrome_trace.png)
-
-## Formatting Code
-
-To format code, execute the following command:
+#### Step 2: Open the corresponding Jupyter notebook for analysis
 
 ```sh
+jupyter notebook experiments-final/analysis/exp1-numrequests-power-energy.ipynb
+```
+
+This notebook:
+- Loads the output directory automatically
+- Plots power draw, GPU utilization, energy efficiency, and emissions metrics
+- Compares across variations (e.g., model type, request volume, QPS)
+
+#### Step 3: Adjust experiment parameters (optional)
+
+Each script uses predefined simulation configurations, but you can modify:
+- Model type (e.g., LLaMA-70B vs LLaMA-8B)
+- Request generator parameters (e.g., QPS, length distribution)
+- Parallelism settings
+- Region for emissions comparison
+
+Modify directly in the experiment script or use YAML configs in `configs/`.
+
+---
+
+### 📊 Visual Examples from the Paper’s Experiments
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" style="padding: 10px;">
+      <strong>⚡ Power Consumption vs. Number of Requests</strong><br>
+      <img src="./assets/experiments-1.png" width="300" height="200">
+    </td>
+    <td align="center" style="padding: 10px;">
+      <strong>⏳ Execution Time vs. Number of Requests</strong><br>
+      <img src="./assets/experiments-2.png" width="300" height="200">
+    </td>
+    <td align="center" style="padding: 10px;">
+      <strong>🌱 Comparative Energy Efficiency Across Models</strong><br>
+      <img src="./assets/experiments-3.png" width="300" height="200">
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
+## 🔋 **5. Vidur–Vessim Co-Simulation (`vidur-vessim-basic` Branch)**
+
+The `vidur-vessim-basic` branch enables **carbon-aware inference simulations** by integrating the **Vidur LLM inference simulator** with **Vessim**, a testbed for modeling solar generation, battery dynamics, and regional carbon emissions.
+
+This co-simulation pipeline lets you:
+- 🔆 Simulate solar energy generation across locations  
+- 🔋 Track battery charging, discharging, and SoC over time  
+- 🌍 Evaluate the **carbon footprint** of LLM inference under different grid conditions  
+
+---
+
+### ⚙️ Environment Setup
+
+Due to dependency mismatches (notably `numpy`), we recommend creating a **separate virtual environment** for this branch:
+
+```bash
+# Create and activate a new environment
+python3 -m venv .venv-vessim
+source .venv-vessim/bin/activate
+
+# Install all required packages for this branch
+pip install -r requirements.txt
+```
+
+Make sure to run your **Vidur simulation first** and then provide the path to the simulation output directory when running the co-simulation.
+
+---
+
+### 🌞 Running the Co-Simulation
+
+You can launch the full Vidur–Vessim co-simulation pipeline using:
+
+```bash
+python -m vidur.vidur_vessim.cli \
+--vidur-sim-dir simulator_output/vidur-vessim-example \
+--location "San Francisco" \
+--agg-freq 1min \
+--analysis-type "trend analysis" \
+--step-size 60 \
+--solar-scale-factor 600 \
+--battery-capacity 100 \
+--battery-initial-soc 0.8 \
+--battery-min-soc 0.2 \
+--log-metrics \
+--carbon-analysis \
+--low-carbon-threshold 100 \
+--high-carbon-threshold 200 \
+--interpolate-datasets
+```
+
+This command processes your Vidur results, applies location-based solar and carbon data, and simulates how battery and emissions behave over time.
+
+---
+
+### 📘 View All CLI Options
+
+To explore all configurable parameters, run:
+
+```bash
+python -m vidur.vidur_vessim.cli -h
+```
+
+---
+
+### 🧾 CLI Argument Reference
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--vidur-sim-dir` | **(Required)** Path to Vidur’s simulation output (must contain MFU power data) | — |
+| `--location` | Location for time zone and solar irradiance | `"San Francisco"` |
+| `--agg-freq` | Aggregation frequency (e.g. `1min`, `5min`) | `"1min"` |
+| `--analysis-type` | Type of simulation analysis (`trend analysis` or `total power analysis`) | `"trend analysis"` |
+| `--step-size` | Simulation time resolution (in seconds) | `60` |
+| `--solar-scale-factor` | Installed solar capacity in watts | `5000` |
+| `--battery-capacity` | Battery size in watt-hours | `5000` |
+| `--battery-initial-soc` | Initial battery state of charge (0.0 to 1.0) | `0.4` |
+| `--battery-min-soc` | Minimum allowable SoC before cutoff | `0.3` |
+| `--log-metrics` | Enables summary logging to `simulation_metrics.txt` | _(flag)_ |
+| `--carbon-analysis` | Enables emissions computation | _(flag)_ |
+| `--low-carbon-threshold` | gCO₂/kWh value considered "green" | `100` |
+| `--high-carbon-threshold` | gCO₂/kWh value considered "dirty" | `200` |
+| `--interpolate-datasets` | Aligns time series via cubic interpolation | _(flag)_ |
+
+📍 **Allowed values for `--location`:**
+```
+Berlin, Cape Town, Hong Kong, Lagos, Mexico City,
+Mumbai, San Francisco, Stockholm, Sydney, São Paulo
+```
+
+---
+
+### 📊 Outputs & Visualizations
+
+Results are saved in the `vessim_analysis/` subfolder inside your simulation output directory.
+
+All key statistics are logged to:
+```bash
+vessim_analysis/simulation_metrics.txt
+```
+
+This file includes:
+- ✅ Total energy demand  
+- ✅ Grid vs. solar energy share  
+- ✅ Carbon intensity over time  
+- ✅ Battery SoC distribution and cycling behavior  
+
+---
+
+### 📈 Vessim Co-Simulation Visuals
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" style="padding: 12px; vertical-align: top;">
+      <strong>🔄 Power Flow Analysis</strong><br>
+      <img src="./assets/power_flow_analysis.png" height="200"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Visualizes how solar, grid, and model power usage intersect.</p>
+    </td>
+    <td align="center" style="padding: 12px; vertical-align: top;">
+      <strong>🔋 Battery Performance Overview</strong><br>
+      <img src="./assets/battery_soc_plot.png" height="200" style="object-fit: contain;"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Shows SoC over time, hourly distribution, and usage state breakdown.</p>
+    </td>
+    <td align="center" style="padding: 12px; vertical-align: top;">
+      <strong>🌍 Carbon Emissions Breakdown</strong><br>
+      <img src="./assets/carbon_emissions_plot.png" height="200"><br>
+      <p style="margin-top: 8px; max-width: 240px;">Gross emissions, renewable offset, and net carbon footprint.</p>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+
+## 🔁 **6. Real-Time Co-Simulation (WIP: `vidur-vessim-realtime` Branch)**
+
+We are actively working on enabling **real-time co-simulation** between Vidur and Vessim in the `vidur-vessim-realtime` branch.
+
+Unlike earlier pipelines that treat Vidur’s power output as a **fixed input** to Vessim, this branch explores a **bidirectional feedback loop** where:
+
+- ⚙️ **Vidur dynamically adapts inference parameters** (e.g., GPU allocation, batch size, throughput) in response to evolving energy availability and carbon intensity from Vessim.
+- ⚡ **Vessim adjusts energy supply decisions** (e.g., switching between grid and solar, scheduling based on battery availability) based on Vidur’s workload.
+
+This **tight integration** brings us closer to realistic datacenter scheduling and enables:
+- ♻️ Adaptive inference during low-carbon windows  
+- 🌍 Geo-aware routing of inference tasks to greener datacenters  
+- ⏱️ Real-time control over system behavior in energy-constrained settings  
+
+#### 🧪 Active Development Areas:
+- Time-synchronized simulation clocks  
+- Real-time state sharing across simulators  
+- A flexible interface for modifying inference & energy parameters mid-run  
+
+> 📢 **This work is in progress and open to contributions!**  
+If you're interested in shaping the future of carbon-aware AI infrastructure, we’d love to collaborate.
+
+➡️ Clone the branch:
+```bash
+git checkout -b vidur-vessim-realtime origin/vidur-vessim-realtime
+```
+
+Feel free to open issues, share ideas, or submit a pull request!
+
+---
+
+## 🧹 **7. Formatting Code**
+
+To automatically format all code using standard style guidelines:
+
+```bash
 make format
 ```
 
-## Contributing
+---
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+## 🤝 **8. Contributing**
 
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+We welcome contributions of all kinds — from code and documentation to ideas and testing!
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+- 🔹 Fork the repository  
+- 🔹 Create a new feature branch  
+- 🔹 Submit a pull request for review  
 
-## Trademarks
+Let us know if you'd like to be involved in real-time simulation, emissions modeling, or future experiment pipelines.
 
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
-trademarks or logos is subject to and must follow 
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
+---
+
+## 🙌 **9. Acknowledgments**
+
+### 🌿 Built on Microsoft Research’s Vidur  
+This project builds upon [**Vidur**](https://github.com/microsoft/vidur), a high-fidelity simulator of LLM inference. Our extensions aim to integrate sustainability as a **first-class metric** in inference workloads.
+
+For more details, check out the **[Vidur paper (MLSys 2024)](https://arxiv.org/abs/2405.05465)**.
+
+### ⚡ Powered by Vessim  
+We leverage [**Vessim**](https://github.com/dos-group/vessim), a simulation framework from TU Berlin for modeling carbon-aware computing environments.
+
+If Vessim helps your research, please cite:
+> Wiesner et al. (2024). *Vessim: A Testbed for Carbon-Aware Applications and Systems.*
+
+---
+
+## 📜 **10. License**
+
+This project follows the original **Vidur license**. See [`LICENSE`](./LICENSE) for details.
+
+🚀 **Happy Sustainable AI Computing!** 🌱
