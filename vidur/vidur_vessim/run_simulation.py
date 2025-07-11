@@ -55,7 +55,7 @@ def run_vessim_simulation(
     environment = vs.Environment(sim_start=sim_start_time.strftime("%Y-%m-%d %H:%M:%S"))
 
     # --- Power signal (already resampled upstream) ---
-    power_signal = vs.HistoricalSignal(data[["power_usage_watts"]])
+    power_signal = vs.HistoricalSignal(data["power_usage_watts"])
 
     # --- Carbon Intensity Signal (only for logging, not as actor) ---
     raw_carbon = vs.HistoricalSignal.load(
