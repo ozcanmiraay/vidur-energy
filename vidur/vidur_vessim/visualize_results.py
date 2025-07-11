@@ -119,10 +119,9 @@ def plot_vessim_results(
             label.set_ha("right")
             
     ## Plot: Power Usage & Solar Generation
-    fig, ax1 = plt.subplots(figsize=(12, 6))
-    fig.suptitle("Power Flow Analysis", fontsize=16, y=0.95)
+    fig, ax1 = plt.subplots(figsize=(5.5, 2.8))  # Reduced size to increase font scale
 
-    # Automatically scale to MW if values are large
+    # Scale to MW if appropriate
     if analysis_type == "total power analysis" and df["vidur_power_usage.p"].abs().max() > 1e5:
         scale_factor = 1e6
         y_unit = "MW"
@@ -130,6 +129,7 @@ def plot_vessim_results(
         scale_factor = 1
         y_unit = "W"
 
+    # Solar Generation Area
     ax1.fill_between(
         df.index,
         0,
@@ -138,81 +138,98 @@ def plot_vessim_results(
         alpha=0.35,
         label=f"Solar Generation ({y_unit})"
     )
+
+    # Power Demand Line
     ax1.plot(
         df.index,
         df["vidur_power_usage.p"] / scale_factor,
         color="red",
+        linewidth=2,
         label=f"Power Demand ({y_unit})"
     )
+
+    # Grid Power Line
     ax1.plot(
         df.index,
         df["grid_power"] / scale_factor,
         color="blue",
+        linewidth=2,
         label=f"Grid Power ({y_unit})"
     )
 
-    ax1.set_ylabel(f"Power ({y_unit})", fontsize=14)
-    ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14)
+    # Axis Labels
+    ax1.set_ylabel(f"Power ({y_unit})", fontsize=12)
+    ax1.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=12)
 
-    ax1.legend(fontsize=10)
+    # Ticks and Grid
+    ax1.tick_params(axis='both', labelsize=11)
     ax1.grid(True, alpha=0.3)
 
-    format_time_axis(ax1, location_tz)
-    plt.tight_layout()
+    # Legend
+    ax1.legend(fontsize=9, loc="upper left")
 
+    # Time formatting
+    format_time_axis(ax1, location_tz)
+
+    plt.tight_layout()
     power_plot_path = os.path.join(save_dir, "power_plot.png")
     plt.savefig(power_plot_path, dpi=300, bbox_inches="tight")
     plt.close()
 
     ## Plot: Battery State of Charge (SOC)
     if "storage.soc" in df.columns:
-        # Compute battery state and additional columns
+
+        # Compute battery state and percent values
         df["battery_state"] = df["storage.charge_level"].diff().apply(
             lambda x: "charging" if x > 0 else ("discharging" if x < 0 else "idle")
         )
-        # Updated carbon-energy theme colors for the bar graph:
-        state_colors = {"charging": "#27ae60", "discharging": "#c0392b", "idle": "#7f8c8d"}
-        battery_state_counts = df["battery_state"].value_counts(normalize=True) * 100
+        df["hour"] = df.index.hour
+        df["soc_percent"] = df["storage.soc"] * 100
 
-        # For logging (ensure these variables are defined)
+        # ✅ Battery usage stats (needed for logging even if we don't plot)
+        battery_state_counts = df["battery_state"].value_counts(normalize=True) * 100
         charging_time = battery_state_counts.get("charging", 0.0)
         discharging_time = battery_state_counts.get("discharging", 0.0)
         idle_time = battery_state_counts.get("idle", 0.0)
 
-        # Compute additional columns for the violin plot
-        df["hour"] = df.index.hour
-        df["soc_percent"] = df["storage.soc"] * 100
+        # Setup improved aspect ratio (wider and taller)
+        fig, axes = plt.subplots(
+            nrows=2,
+            ncols=1,
+            figsize=(8.5, 6.5),  # Increased height
+            gridspec_kw={"height_ratios": [2, 2]}
+        )
 
-        # Create a figure with 3 vertical subplots
-        fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(12, 18))
-        fig.suptitle("Battery Performance Overview", fontsize=20, y=0.98)
-
-        # 1. Battery SOC Plot (remains on top)
+        # ----------------------------------------
+        # 1. Battery SOC Over Time (Top Plot)
+        # ----------------------------------------
         ax_soc = axes[0]
         ax_soc.plot(
             df.index,
-            df["storage.soc"] * 100,
+            df["soc_percent"],
             color="green",
             label="Battery SOC (%)",
             linewidth=2,
         )
         ax_soc.axhline(
             y=df["storage.min_soc"].iloc[0] * 100,
-            color="r",
+            color="red",
             linestyle="--",
-            label="Min SoC",
             linewidth=1.5,
+            label="Min SoC"
         )
-        ax_soc.fill_between(df.index, df["storage.soc"] * 100, alpha=0.2, color="green")
-        ax_soc.set_title("Battery State of Charge", fontsize=16)  # Non-bold title
-        ax_soc.set_ylabel("State of Charge (%)", fontsize=14)
-        ax_soc.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14)
-        ax_soc.legend(fontsize=12)
+        ax_soc.fill_between(df.index, df["soc_percent"], alpha=0.2, color="green")
+
+        ax_soc.set_ylabel("State of Charge (%)", fontsize=16)
+        ax_soc.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=16)
+        ax_soc.legend(fontsize=16, loc="best")
         ax_soc.grid(True, alpha=0.3)
         format_time_axis(ax_soc, location_tz)
-        ax_soc.tick_params(axis="both", labelsize=12)
+        ax_soc.tick_params(axis="both", labelsize=16)  # Bigger ticks
 
-        # 2. Battery SOC Violin Plot by Hour (moved to second position)
+        # ----------------------------------------
+        # 2. Battery SOC Violin Plot by Hour (Bottom Plot)
+        # ----------------------------------------
         sns.set_theme(style="whitegrid", palette="colorblind")
         ax_violin = axes[1]
         sns.violinplot(
@@ -225,36 +242,18 @@ def plot_vessim_results(
             color="#81c784",
             ax=ax_violin,
         )
-        ax_violin.set_title("Battery SOC Distribution by Hour", fontsize=16)  # Non-bold
-        ax_violin.set_xlabel("Hour of Day", fontsize=14)
-        ax_violin.set_ylabel("State of Charge (%)", fontsize=14)
-        ax_violin.tick_params(axis="both", labelsize=12)
+        ax_violin.set_xlabel("Hour of Day", fontsize=16)
+        ax_violin.set_ylabel("State of Charge (%)", fontsize=16)
+        ax_violin.tick_params(axis="x", labelsize=14)
+        ax_violin.tick_params(axis="y", labelsize=18)
         ax_violin.grid(True, linestyle="--", alpha=0.3)
 
-        # 3. Battery Usage Distribution (Horizontal Bar Chart) moved to the bottom
-        ax_bar = axes[2]
-        ax_bar.barh(
-            battery_state_counts.index.str.capitalize(),
-            battery_state_counts.values,
-            color=[state_colors[s] for s in battery_state_counts.index],
-        )
-        ax_bar.set_xlim(0, 100)
-        ax_bar.set_title("Battery Usage Distribution", fontsize=16)  # Non-bold
-        ax_bar.set_xlabel("Time Spent in State (%)", fontsize=14)
-        # Annotate bars with percentages
-        for i, (state, val) in enumerate(zip(battery_state_counts.index, battery_state_counts.values)):
-            ax_bar.text(val + 1, i, f"{val:.1f}%", va="center", fontsize=14)
-        ax_bar.tick_params(axis="both", labelsize=12)
-        ax_bar.grid(True, alpha=0.3)
-
-        # Adjust layout to prevent overlap with the overall title
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-
-        battery_combined_path = os.path.join(save_dir, "battery_combined_plots.png")
-        plt.savefig(battery_combined_path, dpi=300, bbox_inches="tight")
+        # Final layout and export
+        plt.tight_layout()
+        battery_plot_path = os.path.join(save_dir, "battery_soc_plot.png")
+        plt.savefig(battery_plot_path, dpi=300, bbox_inches="tight")
         plt.close()
 
-        # Add these metrics to the log file if logging is enabled
         if log_metrics:
             with open(log_path, "a") as log_file:
                 log_file.write("\n🔋 BATTERY USAGE DISTRIBUTION\n")
@@ -285,37 +284,26 @@ def plot_vessim_results(
         low_carbon_hours = (df["carbon_intensity.p"] < low_carbon_threshold).sum() * step_size / 3600
         high_carbon_hours = (df["carbon_intensity.p"] > high_carbon_threshold).sum() * step_size / 3600
 
+        # Optional logging
         if log_metrics:
             with open(log_path, "a") as log_file:
                 log_file.write("\n🌍 CARBON EMISSIONS ANALYSIS\n")
                 log_file.write("=" * 50 + "\n")
                 log_file.write("\n📊 Emissions Summary:\n")
-                log_file.write(
-                    f"• Total Emissions from Power Usage: {format_emissions(total_gross)}\n"
-                )
-                log_file.write(
-                    f"• Emissions Offset by Solar: {format_emissions(total_offset)}\n"
-                )
-                log_file.write(
-                    f"• Final Carbon Footprint: {format_emissions(total_net)}\n"
-                )
-                log_file.write(
-                    f"• Percentage Offset by Renewables: {(total_offset/total_gross)*100:.1f}%\n"
-                )
-
+                log_file.write(f"• Total Emissions from Power Usage: {format_emissions(total_gross)}\n")
+                log_file.write(f"• Emissions Offset by Solar: {format_emissions(total_offset)}\n")
+                log_file.write(f"• Final Carbon Footprint: {format_emissions(total_net)}\n")
+                log_file.write(f"• Percentage Offset by Renewables: {(total_offset/total_gross)*100:.1f}%\n")
                 log_file.write("\n📈 Carbon Intensity Metrics:\n")
                 log_file.write(f"• Average: {avg_intensity:.1f} gCO2/kWh\n")
                 log_file.write(f"• Peak: {peak_intensity:.1f} gCO2/kWh\n")
                 log_file.write(f"• Minimum: {min_intensity:.1f} gCO2/kWh\n")
-
                 log_file.write("\n⏱️ Time Analysis:\n")
                 log_file.write(f"• Low Carbon Hours (<{low_carbon_threshold} gCO2/kWh): {low_carbon_hours:.1f} hours\n")
-                log_file.write(
-                    f"• High Carbon Hours (> {high_carbon_threshold} gCO2/kWh): {high_carbon_hours:.1f} hours\n"
-                )
+                log_file.write(f"• High Carbon Hours (>{high_carbon_threshold} gCO2/kWh): {high_carbon_hours:.1f} hours\n")
                 log_file.write("=" * 50 + "\n")
 
-        # Calculate totals and determine units
+        # Determine scaling
         max_emission = max(
             abs(emissions_df["gross_emissions"].cumsum().max()),
             abs(emissions_df["renewable_offset"].cumsum().max()),
@@ -323,11 +311,12 @@ def plot_vessim_results(
         y_scale = 1000 if max_emission >= 1000 else 1
         y_unit = "kg" if max_emission >= 1000 else "g"
 
-        # Create plot with more space between subplots
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), height_ratios=[3, 1])
-        fig.suptitle("Carbon Footprint Analysis", fontsize=16, y=0.95)
+        # Create compact plot for improved font scaling
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.5, 6.5), height_ratios=[2, 1])
 
-        # Top plot - Emissions
+        # -----------------------
+        # Top: Cumulative Emissions
+        # -----------------------
         ax1.plot(
             df.index,
             emissions_df["gross_emissions"].cumsum() / y_scale,
@@ -349,8 +338,6 @@ def plot_vessim_results(
             label="Net Footprint",
             linewidth=2.5,
         )
-
-        # Simplified fill
         ax1.fill_between(
             df.index,
             0,
@@ -359,11 +346,19 @@ def plot_vessim_results(
             alpha=0.1,
         )
 
-        ax1.set_ylabel(f"Cumulative CO2 ({y_unit})", fontsize=14)
-        ax1.legend(fontsize=10, loc="upper left", framealpha=0.9)
-        ax1.grid(True, alpha=0.2)
+        ax1.set_ylabel(f"Cumulative CO2 ({y_unit})", fontsize=17)
+        ax1.legend(fontsize=16, loc="upper left", framealpha=0.9)
+        ax1.grid(True, alpha=0.3)
 
-        # Bottom plot - Carbon Intensity
+        # ⏰ Apply time formatting first
+        format_time_axis(ax1, location_tz)
+
+        for label in ax1.get_xticklabels() + ax1.get_yticklabels():
+            label.set_fontsize(15)
+
+        # -----------------------
+        # Bottom: Carbon Intensity Over Time
+        # -----------------------
         ax2.plot(
             df.index,
             df["carbon_intensity.p"],
@@ -375,32 +370,30 @@ def plot_vessim_results(
             y=low_carbon_threshold,
             color="#27AE60",
             linestyle="--",
-            alpha=0.5,
+            alpha=0.6,
             label=f"Low Carbon Threshold ({low_carbon_threshold} gCO2/kWh)",
         )
-
         ax2.axhline(
             y=high_carbon_threshold,
             color="#C0392B",
             linestyle="--",
-            alpha=0.5,
+            alpha=0.6,
             label=f"High Carbon Threshold ({high_carbon_threshold} gCO2/kWh)",
         )
 
-        ax2.set_ylabel("Grid Carbon Intensity\n(gCO2/kWh)", fontsize=14)
-        ax2.set_xlabel(
-            f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=14
-        )
-        ax2.legend(fontsize=10, loc="upper right", framealpha=0.9)
-        ax2.grid(True, alpha=0.2)
+        ax2.set_ylabel("Carbon Intensity\n(gCO2/kWh)", fontsize=18)
+        ax2.set_xlabel(f"Time ({location_tz.zone if location_tz else 'UTC'})", fontsize=18)
+        ax2.legend(fontsize=12, loc="lower left", framealpha=0.9)
+        ax2.grid(True, alpha=0.3)
 
-        # Format axes
-        format_time_axis(ax1, location_tz)
+        # ⏰ Apply time formatting first
         format_time_axis(ax2, location_tz)
 
-        # Adjust layout
-        plt.subplots_adjust(hspace=0.3)  # Increase space between subplots
+        for label in ax2.get_xticklabels() + ax2.get_yticklabels():
+            label.set_fontsize(15)
 
+        # Final layout and export
+        plt.subplots_adjust(hspace=0.4)
         emissions_plot_path = os.path.join(save_dir, "carbon_emissions_plot.png")
         plt.savefig(emissions_plot_path, dpi=300, bbox_inches="tight")
         plt.close()
